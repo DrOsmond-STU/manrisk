@@ -95,6 +95,9 @@
   const ic = (n) => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${IC[n] || ''}</svg>`;
 
   /* ======================= State ======================= */
+  /* AUTH terisi bila server mengonfirmasi sesi (index.php + api/session.php). Null = mode demo (pratinjau/file lokal). */
+  let AUTH = null;
+  let lastActivity = Date.now();
   const S = {
     role: 'Risk Manager',
     risks: D.RISKS.map((r) => Object.assign({}, r)),
@@ -125,7 +128,7 @@
   const roleCfg = () => D.ROLES[S.role];
   const canWrite = () => roleCfg().write;
   const canApprove = () => ['Super Admin', 'Risk Manager', 'Risk Owner', 'Management'].includes(S.role);
-  const ME = () => (S.role === 'Risk Manager' ? 'Osmond' : ({ 'Super Admin': 'Admin Sistem', 'Risk Administrator': 'Yudi Pratama', 'Risk Officer': 'Fajar Nugroho', 'Risk Owner': 'Hendra Wijaya', 'Management': 'Ir. Taufik Rahman', 'Auditor': 'Nurul Hidayah' })[S.role]);
+  const ME = () => (AUTH ? AUTH.user.name : S.role === 'Risk Manager' ? 'Osmond' : ({ 'Super Admin': 'Admin Sistem', 'Risk Administrator': 'Yudi Pratama', 'Risk Officer': 'Fajar Nugroho', 'Risk Owner': 'Hendra Wijaya', 'Management': 'Ir. Taufik Rahman', 'Auditor': 'Nurul Hidayah' })[S.role]);
   const nowStamp = () => '2026-10-05 ' + new Date().toTimeString().slice(0, 5);
   function log(a, ref, f, p, n) { S.audit.unshift({ u: ME(), a, ref, f, p, n, t: nowStamp(), ip: '10.12.4.21' }); }
 
@@ -835,6 +838,30 @@
     });
   }
 
+  /* ======================= Autentikasi ======================= */
+  async function api(path, body) {
+    const r = await fetch(path, { method: 'POST', credentials: 'same-origin', cache: 'no-store',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': AUTH ? AUTH.csrf : '' }, body: JSON.stringify(body || {}) });
+    const j = await r.json().catch(() => ({}));
+    if (r.status === 401) { location.replace('./'); throw new Error(j.error || 'Sesi berakhir'); }
+    if (j.csrf && AUTH) AUTH.csrf = j.csrf;
+    if (!r.ok) { const e = new Error(j.error || 'Permintaan gagal'); e.field = j.field; throw e; }
+    return j;
+  }
+  async function logout() {
+    try { await api('api/logout.php'); } catch (e) { /* tetap keluar */ }
+    location.replace('./');
+  }
+  function startIdleWatch() {
+    const limit = (AUTH.idle || 1800) * 1000;
+    ['click', 'keydown', 'mousemove', 'touchstart', 'scroll'].forEach((ev) => document.addEventListener(ev, () => { lastActivity = Date.now(); }, { passive: true }));
+    setInterval(async () => {
+      if (Date.now() - lastActivity > limit) { location.replace('./'); return; }
+      try { const r = await fetch('api/session.php', { credentials: 'same-origin', cache: 'no-store' }); const j = await r.json(); if (!j.authenticated) location.replace('./'); } catch (e) { /* abaikan gangguan jaringan sesaat */ }
+    }, 60000);
+  }
+  function fmtLogin(iso) { if (!iso) return 'Masuk pertama kali'; const d = new Date(iso); return `Terakhir masuk ${d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })} ${d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}`; }
+
   /* ======================= Shell ======================= */
   const TITLES = {};
   NAV.forEach((g) => g.items.forEach(([id, t]) => (TITLES[id] = t)));
@@ -851,16 +878,27 @@
     <div class="top-ctx">
       <select class="sel" id="org-sel" aria-label="Organisasi" data-orgsel>${opt('bldn', 'BLDN', 'bldn')}${opt('rs', 'RSUD Kota Contoh', 'bldn')}${opt('uv', 'Universitas Contoh', 'bldn')}</select>
       <select class="sel" id="per-sel" aria-label="Periode" data-act-change="period">${['TW III 2026', 'TW II 2026', 'TW I 2026'].map((p) => opt(p, p, 'TW III 2026')).join('')}</select>
-      <select class="sel" id="role-sel" aria-label="Masuk sebagai peran" data-rolesel title="Simulasi peran (RBAC)">${Object.keys(D.ROLES).map((r) => opt(r, `Peran: ${r}`, S.role)).join('')}</select>
+      ${AUTH ? '' : `<select class="sel" id="role-sel" aria-label="Masuk sebagai peran" data-rolesel title="Simulasi peran (RBAC)">${Object.keys(D.ROLES).map((r) => opt(r, `Peran: ${r}`, S.role)).join('')}</select>`}
       <button class="icon-btn c-indigo" data-act="theme" aria-label="Ganti tema terang/gelap">${ic('moon')}</button>
       <button class="icon-btn c-orange" data-act="notif" aria-label="Notifikasi early warning">${ic('bell')}<span class="dot">${WARNINGS.length}</span></button>
       <a class="icon-btn ai-btn c-violet" href="#ai" aria-label="AI Risk Assistant">${ic('spark')}</a>
-      <span class="user"><span class="avatar">${initials(ME()) || ME()[0]}</span><span class="u-txt"><b>${esc(ME())}</b><br><span class="muted">${esc(S.role)}</span></span></span>
+      <button type="button" class="user ${AUTH ? 'u-btn' : ''}" data-act="umenu" aria-haspopup="menu" aria-expanded="${S.overlay === 'umenu'}" title="${AUTH ? 'Akun' : 'Mode demo'}"><span class="avatar">${initials(ME()) || ME()[0]}</span><span class="u-txt"><b>${esc(ME())}</b><br><span class="muted">${esc(S.role)}</span></span></button>
     </div>`;
   }
   function renderOverlay() {
     const o = $('#overlay');
-    if (S.overlay === 'notif') {
+    if (S.overlay === 'umenu') {
+      const u = AUTH ? AUTH.user : { name: ME(), role: S.role, email: 'demo@manrisk.id', unit: 'Mode demo' };
+      o.innerHTML = `<div class="scrim clear" data-act="close-ov"></div><div class="umenu" role="menu"><div class="um-h"><span class="avatar">${initials(u.name) || u.name[0]}</span><div><b>${esc(u.name)}</b><div class="muted" style="font-size:12px">${esc(u.role)} · ${esc(u.unit || '')}</div><div class="mono muted" style="font-size:11.5px">${esc(u.email)}</div></div></div>
+        ${AUTH ? `<div class="hint" style="padding:0 14px 8px">${fmtLogin(AUTH.user.lastLogin)}</div><button type="button" class="um-i" role="menuitem" data-act="pwd-open">${ic('lock')}Ganti kata sandi</button><button type="button" class="um-i" role="menuitem" data-act="theme">${ic('moon')}Ganti tema</button><button type="button" class="um-i danger" role="menuitem" data-act="logout">${ic('x')}Keluar</button>` : `<div class="hint" style="padding:0 14px 12px">Pratinjau tanpa server: peran dapat diganti lewat pilihan di bilah atas. Di server, akun login menentukan peran.</div>`}</div>`;
+    } else if (S.overlay === 'pwd') {
+      o.innerHTML = `<div class="scrim" data-act="close-ov"></div><form class="modal" data-form="pwd" role="dialog" aria-labelledby="pwd-t"><div class="drawer-h"><h3 id="pwd-t">Ganti kata sandi</h3><button type="button" class="icon-btn c-indigo" data-act="close-ov" aria-label="Tutup">${ic('x')}</button></div>
+        <div class="stack" style="padding:16px"><div class="field"><label for="pw-cur">Kata sandi saat ini</label><input class="inp" id="pw-cur" type="password" autocomplete="current-password" required></div>
+        <div class="field"><label for="pw-new">Kata sandi baru</label><input class="inp" id="pw-new" type="password" autocomplete="new-password" minlength="10" required><span class="hint">Minimal 10 karakter, memuat huruf dan angka.</span></div>
+        <div class="field"><label for="pw-rep">Ulangi kata sandi baru</label><input class="inp" id="pw-rep" type="password" autocomplete="new-password" required></div>
+        <div class="ro-banner" id="pw-err" hidden style="background:color-mix(in oklab,var(--lv-vh) 12%,var(--surface));color:var(--bad-ink)"></div></div>
+        <div class="row" style="justify-content:flex-end;padding:0 16px 16px"><button type="button" class="btn ghost c-indigo" data-act="close-ov">Batal</button><button type="submit" class="btn c-green" id="pw-go">Simpan kata sandi</button></div></form>`;
+    } else if (S.overlay === 'notif') {
       o.innerHTML = `<div class="scrim" data-act="close-ov"></div><aside class="drawer" role="dialog" aria-label="Early warning"><div class="drawer-h"><h3>Early warning</h3><button class="icon-btn" data-act="close-ov" aria-label="Tutup">${ic('x')}</button></div><div class="drawer-b">${feed(WARNINGS)}</div></aside>`;
     } else if (S.nav) {
       o.innerHTML = '<div class="scrim" data-act="nav"></div>';
@@ -900,7 +938,11 @@
     nav: () => { S.nav = !S.nav; renderOverlay(); },
     notif: () => { S.overlay = 'notif'; renderOverlay(); },
     'close-ov': () => { S.overlay = null; renderOverlay(); },
+    umenu: () => { S.overlay = S.overlay === 'umenu' ? null : 'umenu'; renderOverlay(); },
+    'pwd-open': () => { S.overlay = 'pwd'; renderOverlay(); const i = $('#pw-cur'); if (i) i.focus(); },
+    logout: () => { if (AUTH) logout(); else toast('Mode demo: tidak ada sesi untuk diakhiri'); },
     theme: () => {
+      if (S.overlay === 'umenu') { S.overlay = null; renderOverlay(); }
       const r = document.documentElement, cur = r.getAttribute('data-theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
       r.setAttribute('data-theme', cur === 'dark' ? 'light' : 'dark');
       try { localStorage.setItem('manrisk-theme', r.getAttribute('data-theme')); } catch (e) { /* abaikan */ }
@@ -1017,6 +1059,15 @@
     const f = e.target.dataset.form;
     if (f === 'search') { const q = $('#gq').value.trim(); S.reg = { q, lv: '', unit: '', cat: '', st: '', cell: '', sort: 'res' }; S.pg.reg = 1; if (allowed('register')) location.hash = 'register'; if (route().id === 'register') render(true); }
     if (f === 'ai') { const i = $('#ai-in'); const q = i.value.trim(); i.value = ''; askAI(q); }
+    if (f === 'pwd') {
+      const cur = $('#pw-cur').value, nw = $('#pw-new').value, rep = $('#pw-rep').value, err = $('#pw-err'), go = $('#pw-go');
+      const fail = (m) => { err.textContent = m; err.hidden = false; };
+      if (nw !== rep) { fail('Ulangan kata sandi baru tidak sama.'); return; }
+      if (!AUTH) { toast('Mode demo: kata sandi tidak disimpan'); S.overlay = null; renderOverlay(); return; }
+      go.disabled = true; go.textContent = 'Menyimpan…';
+      api('api/password.php', { current: cur, next: nw }).then(() => { S.overlay = null; renderOverlay(); toast('Kata sandi berhasil diganti'); })
+        .catch((x) => { fail(x.message); go.disabled = false; go.textContent = 'Simpan kata sandi'; });
+    }
   });
 
   /* Tooltip & crosshair */
@@ -1045,5 +1096,13 @@
 
   try { const th = localStorage.getItem('manrisk-theme'); if (th) document.documentElement.setAttribute('data-theme', th); } catch (e) { /* abaikan */ }
   window.addEventListener('hashchange', () => render());
-  render();
+  (async function boot() {
+    try {
+      const r = await fetch('api/session.php', { credentials: 'same-origin', cache: 'no-store' });
+      const j = await r.json();
+      if (j && j.authenticated) { AUTH = { user: j.user, csrf: j.csrf, idle: j.idleLimit }; S.role = j.user.role; startIdleWatch(); }
+      else if (j && j.authenticated === false) { location.replace('./'); return; }
+    } catch (e) { AUTH = null; /* tanpa server PHP (pratinjau / berkas lokal): mode demo */ }
+    render();
+  })();
 })();

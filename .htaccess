@@ -1,20 +1,24 @@
-# ManRisk ERM — situs statis
-DirectoryIndex index.html
+# ManRisk ERM
+# index.php memeriksa sesi, lalu mengirim index.html hanya kepada pengguna yang sudah masuk.
+DirectoryIndex index.php index.html
 
-# Jangan sajikan metadata Git Deploy dan berkas non-aplikasi
+# Berkas yang tidak boleh diambil langsung dari web.
+# index.html hanya dibaca oleh index.php dari sistem berkas.
 RedirectMatch 404 /\.git(/|$)
-<FilesMatch "^(README\.md|php\.ini|\.htaccess)$">
+<FilesMatch "^(README\.md|php\.ini|\.htaccess|index\.html)$">
   Require all denied
 </FilesMatch>
 
-# HTML selalu dicek ulang ke server, jadi deploy baru langsung terlihat.
-# JS boleh disimpan lama karena index.html memanggilnya dengan penanda ?v=.
+# Berkas JavaScript aplikasi (termasuk data demo) hanya dikirim ke sesi yang sudah masuk.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteRule ^assets/([A-Za-z0-9_-]+\.js)$ api/asset.php?f=$1 [L,QSA]
+</IfModule>
+
+# Respons PHP bersifat pribadi: jangan pernah disimpan proxy/browser.
 <IfModule mod_headers.c>
-  <FilesMatch "\.html?$">
-    Header set Cache-Control "no-cache, must-revalidate"
-  </FilesMatch>
-  <FilesMatch "\.js$">
-    Header set Cache-Control "public, max-age=86400"
+  <FilesMatch "\.php$">
+    Header set Cache-Control "private, no-store, no-cache, must-revalidate"
   </FilesMatch>
 </IfModule>
 <IfModule mod_expires.c>

@@ -1,0 +1,6 @@
+# Data akun & sesi tidak pernah masuk repo (disimpan di luar docroot: ../manrisk-data)
+manrisk-data/
+users.json
+throttle.json
+auth.log
+sessions/
