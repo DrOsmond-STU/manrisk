@@ -81,6 +81,12 @@ Route::middleware(['auth', 'session.policy', 'password.fresh', 'throttle:app'])-
     Route::get('/risks/matrix', [MatrixController::class, 'index'])->name('risks.matrix');
     Route::get('/risks/evaluation', [MatrixController::class, 'evaluation'])->name('risks.evaluation');
     Route::get('/risks/residual', [MatrixController::class, 'residual'])->name('risks.residual');
+    Route::get('/risks/export', [RiskController::class, 'export'])->middleware('throttle:20,1')->name('risks.export');
+    Route::get('/risks/similar', [RiskController::class, 'similar'])->middleware('throttle:60,1')->name('risks.similar');
+    Route::get('/import/{type}', [\App\Http\Controllers\ImportController::class, 'show'])->name('imports.show');
+    Route::get('/import/{type}/template', [\App\Http\Controllers\ImportController::class, 'template'])->name('imports.template');
+    Route::post('/import/{type}/preview', [\App\Http\Controllers\ImportController::class, 'preview'])->middleware('throttle:20,1')->name('imports.preview');
+    Route::post('/import/{type}/commit', [\App\Http\Controllers\ImportController::class, 'commit'])->middleware('throttle:20,1')->name('imports.commit');
     Route::resource('risks', RiskController::class);
     Route::post('/risks/{risk}/submit', [RiskController::class, 'submit'])->name('risks.submit');
     Route::post('/risks/{risk}/close', [RiskController::class, 'close'])->name('risks.close');
@@ -98,6 +104,7 @@ Route::middleware(['auth', 'session.policy', 'password.fresh', 'throttle:app'])-
     Route::resource('action-plans', ActionPlanController::class)->except(['create', 'edit'])->parameters(['action-plans' => 'plan']);
     Route::post('/action-plans/{plan}/progress', [ActionPlanController::class, 'progress'])->name('action-plans.progress');
     Route::post('/action-plans/{plan}/cancel', [ActionPlanController::class, 'cancel'])->name('action-plans.cancel');
+    Route::post('/action-plans/{plan}/verify', [ActionPlanController::class, 'verify'])->name('action-plans.verify');
 
     // KRI
     Route::resource('kris', KriController::class)->only(['index', 'store', 'update', 'destroy']);
@@ -116,6 +123,7 @@ Route::middleware(['auth', 'session.policy', 'password.fresh', 'throttle:app'])-
     Route::post('/reviews', [ReviewController::class, 'store'])->name('reviews.store');
     Route::delete('/reviews/{review}', [ReviewController::class, 'destroy'])->name('reviews.destroy');
     Route::post('/reviews/snapshot', [ReviewController::class, 'snapshot'])->name('reviews.snapshot');
+    Route::get('/reviews/minutes', [ReviewController::class, 'minutes'])->middleware('throttle:20,1')->name('reviews.minutes');
 
     // Dokumen
     Route::get('/documents', [DocumentController::class, 'index'])->name('documents.index');
@@ -144,6 +152,8 @@ Route::middleware(['auth', 'session.policy', 'password.fresh', 'throttle:app'])-
     // Laporan & AI
     Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');
     Route::post('/reports', [ReportController::class, 'generate'])->middleware('throttle:30,1')->name('reports.generate');
+    Route::post('/reports/schedules', [ReportController::class, 'storeSchedule'])->name('reports.schedules.store');
+    Route::delete('/reports/schedules/{schedule}', [ReportController::class, 'destroySchedule'])->name('reports.schedules.destroy');
     Route::get('/ai', [AiController::class, 'index'])->name('ai.index');
     Route::post('/ai', [AiController::class, 'run'])->middleware('throttle:20,1')->name('ai.run');
 
@@ -156,6 +166,7 @@ Route::middleware(['auth', 'session.policy', 'password.fresh', 'throttle:app'])-
     // Administrasi
     Route::prefix('admin')->middleware('role:super_admin,risk_admin,risk_manager,auditor')->group(function () {
         Route::get('/audit', [AuditController::class, 'index'])->name('audit.index');
+        Route::get('/audit/export', [AuditController::class, 'export'])->middleware('throttle:10,1')->name('audit.export');
     });
     Route::prefix('admin')->middleware('role:super_admin')->group(function () {
         Route::get('/users', [UserController::class, 'index'])->name('users.index');

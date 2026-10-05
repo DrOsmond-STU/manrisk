@@ -44,4 +44,27 @@ class AuditController extends Controller
             'auth_logs' => $request->user()->hasRole('super_admin', 'risk_admin', 'auditor') ? AuthLog::with('user:id,name')->where('organization_id', $org)->latest('id')->limit(200)->get() : [],
         ]);
     }
+
+    public function export(Request $request)
+    {
+        $this->authorize('viewAny', AuditLog::class);
+        $f = $request->validate(['action' => ['nullable', 'string', 'max:30'], 'from' => ['nullable', 'date'], 'to' => ['nullable', 'date'], 'user_id' => ['nullable', 'integer']]);
+        $org = $request->user()->organization_id;
+        $q = AuditLog::with('user:id,name')->where('organization_id', $org)->orderBy('id')
+            ->when($f['action'] ?? null, fn ($x, $v) => $x->where('action', $v))->when($f['user_id'] ?? null, fn ($x, $v) => $x->where('user_id', $v))
+            ->when($f['from'] ?? null, fn ($x, $v) => $x->where('created_at', '>=', $v))->when($f['to'] ?? null, fn ($x, $v) => $x->where('created_at', '<=', $v . ' 23:59:59'));
+        AuditLog::record('exported', $request->user(), ['audit_csv' => [null, $f]], 'audit.export');
+        $safe = fn ($v) => \App\Exports\ReportExport::safe(is_array($v) ? json_encode($v, JSON_UNESCAPED_UNICODE) : (string) $v);
+        return response()->streamDownload(function () use ($q, $safe) {
+            $out = fopen('php://output', 'w');
+            fwrite($out, "\xEF\xBB\xBF");
+            fputcsv($out, ['id', 'waktu', 'pengguna', 'aksi', 'objek', 'id_objek', 'label', 'perubahan', 'konteks', 'ip', 'user_agent']);
+            $q->chunk(1000, function ($rows) use ($out, $safe) {
+                foreach ($rows as $l) {
+                    fputcsv($out, array_map($safe, [$l->id, $l->created_at?->format('Y-m-d H:i:s'), $l->user?->name ?? 'sistem', $l->action, $l->subject_type, $l->subject_id, $l->subject_label, $l->changes, $l->context, $l->ip, $l->user_agent]));
+                }
+            });
+            fclose($out);
+        }, 'audit-trail-' . now()->format('Ymd-His') . '.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);
+    }
 }

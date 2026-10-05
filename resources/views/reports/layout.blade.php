@@ -14,6 +14,7 @@
 </style></head><body>
 <div class="foot">ManRisk ERM · {{ $org }} · dibuat {{ $generated_at->format('d/m/Y H:i') }} oleh {{ $by }} · Dokumen internal</div>
 <h1><span class="brand">ManRisk</span> · {{ $title }}</h1>
+<div class="meta">Nomor: MR/{{ strtoupper(substr(md5($title . $generated_at), 0, 6)) }}/{{ $generated_at->format('m/Y') }}</div>
 <div class="meta">{{ $org }} · dibuat {{ $generated_at->translatedFormat('d F Y H:i') }} oleh {{ $by }}@if(!empty($params['unit_id'])) · unit #{{ $params['unit_id'] }}@endif</div>
 @yield('content')
 </body></html>

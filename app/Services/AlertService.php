@@ -53,6 +53,14 @@ class AlertService
         }
         $risk = $kri->risk;
         $label = $status === 'critical' ? 'KRITIS' : 'PERINGATAN';
+        if ($status === 'critical' && !\App\Models\Improvement::withoutGlobalScopes()->where('organization_id', $kri->organization_id)->where('source_type', 'kri_breach')->where('source_ref', $kri->code)->where('status', '!=', 'done')->exists()) {
+            \App\Models\Improvement::withoutGlobalScopes()->create(['organization_id' => $kri->organization_id, 'code' => \App\Support\Numbering::next(\App\Models\Improvement::class, 'IMP', $kri->organization_id),
+                'source_type' => 'kri_breach', 'source_ref' => $kri->code, 'title' => "Tindak lanjut pelanggaran KRI {$kri->name}", 'description' => "Nilai {$kri->last_value} {$kri->unit} melewati ambang kritis {$kri->threshold_crit}.",
+                'pic_id' => $kri->owner_id, 'unit_id' => $risk?->unit_id, 'due_date' => now()->addDays(30), 'status' => 'open']);
+        }
+        if ($status === 'critical' && $risk && $risk->status === 'monitoring') {
+            $risk->forceFill(['status' => 'treating'])->save(); // Dipantau → Dalam Penanganan saat KRI kritis (§6.1)
+        }
         $this->raise(
             'kri_breach',
             $status === 'critical' ? 'critical' : 'warning',

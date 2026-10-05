@@ -14,6 +14,9 @@ return [
     'session_idle_minutes' => (int) env('MR_SESSION_IDLE_MINUTES', 30),
     'session_absolute_hours' => (int) env('MR_SESSION_ABSOLUTE_HOURS', 8),
 
+    // Penyelesaian action plan wajib bukti & verifikasi Risk Owner (F-TRT-07)
+    'plan_completion_verification' => (bool) env('MR_PLAN_VERIFICATION', true),
+
     // Alur persetujuan
     'approval_sla_days' => (int) env('MR_APPROVAL_SLA_DAYS', 3),
 

@@ -46,6 +46,11 @@ class RiskRequest extends FormRequest
             'control_ids' => ['nullable', 'array'],
             'control_ids.*' => ['integer', $exists('controls')],
             'note' => ['nullable', 'string', 'max:1000'],
+            // Action plan awal opsional dari wizard (langkah perlakuan)
+            'plan_title' => ['nullable', 'string', 'max:255'],
+            'plan_due' => ['nullable', 'required_with:plan_title', 'date', 'after_or_equal:today'],
+            'plan_pic_id' => ['nullable', Rule::exists('users', 'id')->where('organization_id', $org)->where('active', true)],
+            'from_incident' => ['nullable', Rule::exists('incidents', 'id')->where('organization_id', $org)],
         ];
     }
 

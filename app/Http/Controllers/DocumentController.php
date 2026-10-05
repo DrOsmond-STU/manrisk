@@ -20,17 +20,21 @@ class DocumentController extends Controller
     public function index(Request $request)
     {
         $this->authorize('viewAny', Document::class);
-        $f = $request->validate(['q' => ['nullable', 'string', 'max:100'], 'type' => ['nullable', Rule::in(array_keys(config('manrisk.document_types')))], 'status' => ['nullable', Rule::in(['draft', 'review', 'approved', 'expired'])]]);
+        $f = $request->validate(['history' => ['nullable', 'integer'], 'q' => ['nullable', 'string', 'max:100'], 'type' => ['nullable', Rule::in(array_keys(config('manrisk.document_types')))], 'status' => ['nullable', Rule::in(['draft', 'review', 'approved', 'expired'])]]);
         $q = \App\Support\UnitScope::morph(Document::with(['uploader:id,name', 'subject']), $request->user());
         if (!empty($f['q'])) {
             $q->where(fn ($w) => $w->where('title', 'like', "%{$f['q']}%")->orWhere('original_name', 'like', "%{$f['q']}%"));
+        }
+        if (!empty($f['history'])) {
+            $ids = $this->chain((int) $f['history']);
+            $q->whereIn('id', $ids)->reorder()->orderByDesc('version');
         }
         foreach (['type', 'status'] as $k) {
             if (!empty($f[$k])) {
                 $q->where($k, $f[$k]);
             }
         }
-        $docs = $q->latest()->paginate(25)->withQueryString()->through(fn ($d) => $d->only('id', 'type', 'title', 'version', 'original_name', 'mime', 'size', 'status', 'expires_at', 'created_at') + [
+        $docs = (empty($f['history']) ? $q->latest() : $q)->paginate(25)->withQueryString()->through(fn ($d) => $d->only('id', 'type', 'title', 'version', 'original_name', 'mime', 'size', 'status', 'expires_at', 'created_at', 'replaces_id', 'hash') + [
             'uploader' => $d->uploader?->name, 'subject' => $d->subject ? ['type' => class_basename($d->subject), 'code' => $d->subject->code ?? null, 'name' => $d->subject->name ?? $d->subject->title ?? null] : null,
             'can_delete' => $request->user()->can('delete', $d),
         ]);
@@ -45,10 +49,8 @@ class DocumentController extends Controller
     public function store(Request $request)
     {
         $this->authorize('create', Document::class);
-        $mimes = implode(',', config('manrisk.upload_mimes'));
-        $exts = implode(',', config('manrisk.upload_extensions'));
         $data = $request->validate([
-            'file' => ['required', 'file', 'max:' . config('manrisk.upload_max_kb'), "mimetypes:$mimes", "extensions:$exts"],
+            'file' => \App\Support\DocumentStore::rules(),
             'title' => ['required', 'string', 'max:255'],
             'type' => ['required', Rule::in(array_keys(config('manrisk.document_types')))],
             'subject_kind' => ['nullable', Rule::in(array_keys(self::SUBJECTS))],
@@ -58,36 +60,18 @@ class DocumentController extends Controller
             'replaces_id' => ['nullable', Rule::exists('documents', 'id')->where('organization_id', $request->user()->organization_id)],
         ]);
         $subject = null;
-        if (!empty($data['subject_kind'])) {
+        $old = !empty($data['replaces_id']) ? Document::findOrFail($data['replaces_id']) : null;
+        if ($old) {
+            $this->authorize('view', $old);
+            $subject = $old->subject;
+        } elseif (!empty($data['subject_kind'])) {
             $subject = (self::SUBJECTS[$data['subject_kind']])::findOrFail($data['subject_id']);
             abort_unless($request->user()->can('view', $subject), 403);
         }
-        $file = $data['file'];
-        // Pertahanan berlapis: periksa tipe berdasarkan isi berkas (magic bytes), bukan hanya ekstensi/klaim klien
-        $detected = (string) (new \finfo(FILEINFO_MIME_TYPE))->file($file->getRealPath());
-        $allowed = array_merge(config('manrisk.upload_mimes'), ['application/zip', 'application/x-ole-storage', 'application/CDFV2']);
-        if (!in_array($detected, $allowed, true)) {
-            return back()->withErrors(['file' => 'Isi berkas tidak sesuai dengan tipe yang diizinkan (' . $detected . ').']);
-        }
-        if (($scan = $this->virusScan($file->getRealPath())) !== true) {
-            \App\Models\AuthLog::write('upload_blocked', $request->user()->email, $request->user(), mb_substr((string) $scan, 0, 200));
-            return back()->withErrors(['file' => 'Berkas ditolak oleh pemindai antivirus.']);
-        }
-        $ext = strtolower($file->getClientOriginalExtension());
-        $name = Str::uuid() . '.' . $ext;
-        $dir = 'documents/' . $request->user()->organization_id . '/' . now()->format('Y/m');
-        $path = $file->storeAs($dir, $name, 'local');
-        $version = 1;
-        if (!empty($data['replaces_id'])) {
-            $old = Document::find($data['replaces_id']);
-            $version = ($old?->version ?? 0) + 1;
-        }
-        $doc = Document::create([
-            'subject_type' => $subject?->getMorphClass(), 'subject_id' => $subject?->getKey(),
-            'type' => $data['type'], 'title' => $data['title'], 'version' => $version, 'path' => $path,
-            'original_name' => mb_substr(preg_replace('/[^\w .()\-]/u', '_', $file->getClientOriginalName()), 0, 255),
-            'mime' => $file->getMimeType(), 'size' => $file->getSize(), 'hash' => hash_file('sha256', $file->getRealPath()),
-            'uploaded_by' => $request->user()->id, 'expires_at' => $data['expires_at'] ?? null, 'status' => $data['status'] ?? 'draft', 'replaces_id' => $data['replaces_id'] ?? null,
+        $version = $old ? Document::whereIn('id', $this->chain($old->id))->max('version') + 1 : 1;
+        $doc = \App\Support\DocumentStore::store($data['file'], $request->user(), $subject, [
+            'type' => $data['type'], 'title' => $data['title'], 'version' => $version, 'expires_at' => $data['expires_at'] ?? null,
+            'status' => $data['status'] ?? 'draft', 'replaces_id' => $data['replaces_id'] ?? null,
         ]);
         return back()->with('success', "Dokumen “{$doc->title}” diunggah.");
     }
@@ -125,15 +109,20 @@ class DocumentController extends Controller
             'expired' => $base()->where('status', 'expired')->count(), 'by_type' => $base()->selectRaw('type, count(*) n')->groupBy('type')->pluck('n', 'type')];
     }
 
-    /** true bila bersih atau pemindai tidak dikonfigurasi; string pesan bila terdeteksi/galat. */
-    private function virusScan(string $path)
+    /** Semua id dalam rantai versi dokumen (maju & mundur). */
+    private function chain(int $id): array
     {
-        $bin = config('manrisk.clamav_path');
-        if (!$bin || !is_executable($bin)) {
-            return true;
+        $ids = [$id];
+        $cur = Document::find($id);
+        for ($i = 0; $cur && $cur->replaces_id && $i < 50; $i++) {
+            $ids[] = $cur->replaces_id;
+            $cur = Document::find($cur->replaces_id);
         }
-        $out = [];
-        exec(escapeshellcmd($bin) . ' --no-summary ' . escapeshellarg($path) . ' 2>&1', $out, $code);
-        return $code === 0 ? true : ('clamav exit ' . $code . ': ' . implode(' ', $out));
+        $frontier = $ids;
+        for ($i = 0; $frontier && $i < 50; $i++) {
+            $frontier = Document::whereIn('replaces_id', $frontier)->whereNotIn('id', $ids)->pluck('id')->all();
+            $ids = array_merge($ids, $frontier);
+        }
+        return array_values(array_unique($ids));
     }
 }

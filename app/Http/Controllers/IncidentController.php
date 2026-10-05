@@ -44,7 +44,7 @@ class IncidentController extends Controller
     {
         $this->authorize('view', $incident);
         $incident->load(['risk:id,code,name', 'unit:id,name', 'reporter:id,name', 'lossEvents.category:id,name', 'documents.uploader:id,name', 'lessons.creator:id,name']);
-        return Inertia::render('Incidents/Show', ['incident' => $incident, 'categories' => RiskCategory::orderBy('sort')->get(['id', 'name']), 'can' => ['update' => auth()->user()->can('update', $incident)]]);
+        return Inertia::render('Incidents/Show', ['incident' => $incident, 'categories' => RiskCategory::orderBy('sort')->get(['id', 'name']), 'can' => ['update' => auth()->user()->can('update', $incident), 'create_risk' => auth()->user()->can('create', \App\Models\Risk::class)]]);
     }
 
     public function store(Request $request, AlertService $alerts)

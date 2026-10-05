@@ -103,17 +103,20 @@ class ModulesCrudTest extends TestCase
 
     public function test_action_plans_progress_cancel_and_risk_status_sync(): void
     {
-        $risk = $this->makeRisk(['status' => 'monitoring']);
+        Storage::fake('local');
+        $risk = $this->makeRisk(['status' => 'monitoring', 'residual_l' => 2, 'residual_i' => 3]);
         $this->as('risk_owner')->post('/action-plans', ['risk_id' => $risk->id, 'title' => 'Mitigasi 1', 'priority' => 'high', 'due_date' => now()->addMonth()->toDateString(), 'expected_dl' => 1])->assertSessionHas('success');
         $p = ActionPlan::withoutGlobalScopes()->first();
         $this->assertSame('AP-' . now()->year . '-001', $p->code);
         $this->assertSame('treating', $risk->fresh()->status);
-        $this->as('risk_owner')->get("/risks/{$risk->id}")->assertInertia(fn ($x) => $x->where('projected.l', 2));
+        $this->as('risk_owner')->get("/risks/{$risk->id}")->assertInertia(fn ($x) => $x->where('projected.l', 1));
         $this->as('risk_owner')->post("/action-plans/{$p->id}/progress", ['progress' => 150])->assertSessionHasErrors('progress');
         $this->as('risk_owner')->post("/action-plans/{$p->id}/progress", ['progress' => 40, 'note' => 'jalan'])->assertSessionHas('success');
         $this->assertDatabaseHas('action_progress', ['action_plan_id' => $p->id, 'from_pct' => 0, 'to_pct' => 40]);
-        $this->as('risk_owner')->post("/action-plans/{$p->id}/progress", ['progress' => 100])->assertSessionHasErrors('note');
-        $this->as('risk_owner')->post("/action-plans/{$p->id}/progress", ['progress' => 100, 'note' => 'selesai'])->assertSessionHas('success');
+        $this->as('risk_owner')->post("/action-plans/{$p->id}/progress", ['progress' => 100])->assertSessionHasErrors(['note', 'evidence']);
+        $this->as('risk_owner')->post("/action-plans/{$p->id}/progress", ['progress' => 100, 'note' => 'selesai', 'evidence' => UploadedFile::fake()->createWithContent('bukti.pdf', "%PDF-1.4\n%%EOF")])->assertSessionHas('success');
+        $this->assertDatabaseHas('documents', ['subject_type' => 'action_plan', 'subject_id' => $p->id]);
+        $this->assertNotNull($p->fresh()->verified_at); // pemilik risiko = verifikasi otomatis
         $this->assertNotNull($p->fresh()->completed_at);
         $this->assertSame('monitoring', $risk->fresh()->status);
         $this->as('risk_owner')->put("/action-plans/{$p->id}", ['risk_id' => $risk->id, 'title' => 'Diubah', 'priority' => 'low', 'due_date' => now()->addMonths(2)->toDateString()])->assertSessionHas('success');
@@ -261,5 +264,26 @@ class ModulesCrudTest extends TestCase
         $this->assertDatabaseHas('ai_interactions', ['feature' => 'explain_score', 'user_id' => $this->users['risk_owner']->id]);
         $riskB = $this->makeRisk([], $this->unitB);
         $this->as('risk_officer')->postJson('/ai', ['feature' => 'explain_score', 'risk_id' => $riskB->id])->assertForbidden();
+    }
+
+    public function test_action_plan_completion_requires_owner_verification(): void
+    {
+        Storage::fake('local');
+        $risk = $this->makeRisk(['status' => 'treating', 'residual_l' => 2, 'residual_i' => 2]);
+        $this->as('risk_owner')->post('/action-plans', ['risk_id' => $risk->id, 'title' => 'Mitigasi', 'priority' => 'high', 'due_date' => now()->addMonth()->toDateString(), 'pic_id' => $this->users['risk_officer']->id]);
+        $p = ActionPlan::withoutGlobalScopes()->first();
+        $this->as('risk_officer')->post("/action-plans/{$p->id}/progress", ['progress' => 100, 'note' => 'beres', 'evidence' => UploadedFile::fake()->createWithContent('b.pdf', "%PDF-1.4\n%%EOF")])->assertSessionHas('success');
+        $p->refresh();
+        $this->assertSame('verify', $p->computedStatus());
+        $this->assertSame('treating', $risk->fresh()->status);
+        $this->assertDatabaseHas('alerts', ['type' => 'plan_verify']);
+        $this->as('risk_officer')->post("/action-plans/{$p->id}/verify", ['action' => 'approve'])->assertForbidden();
+        $this->as('risk_owner')->post("/action-plans/{$p->id}/verify", ['action' => 'reject'])->assertSessionHasErrors('note');
+        $this->as('risk_owner')->post("/action-plans/{$p->id}/verify", ['action' => 'reject', 'note' => 'bukti kurang'])->assertSessionHas('success');
+        $this->assertSame(90, (int) $p->fresh()->progress);
+        $this->as('risk_officer')->post("/action-plans/{$p->id}/progress", ['progress' => 100, 'note' => 'lengkap'])->assertSessionHas('success');
+        $this->as('risk_owner')->post("/action-plans/{$p->id}/verify", ['action' => 'approve'])->assertSessionHas('success');
+        $this->assertSame('done', $p->fresh()->computedStatus());
+        $this->assertSame('monitoring', $risk->fresh()->status);
     }
 }

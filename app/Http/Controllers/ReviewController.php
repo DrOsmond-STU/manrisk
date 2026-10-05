@@ -58,7 +58,7 @@ class ReviewController extends Controller
         $review = Review::create($data + [
             'previous_score' => $prev, 'current_score' => $risk->residual_score,
             'trend' => $prev === null ? 'flat' : ($risk->residual_score > $prev ? 'up' : ($risk->residual_score < $prev ? 'down' : 'flat')),
-            'reviewer_id' => $request->user()->id, 'signed_at' => now(),
+            'reviewer_id' => $request->user()->id, 'signed_at' => now(), 'signed_ip' => $request->ip(),
         ]);
         if ($data['decision'] === 'close' && $risk->status !== 'closed' && $risk->status !== 'pending') {
             $approvals->submit($risk, 'closure', $request->user(), 'Hasil review ' . $data['period'] . ': ' . ($data['note'] ?? 'direkomendasikan ditutup'));
@@ -87,5 +87,22 @@ class ReviewController extends Controller
             $n++;
         }
         return $this->ok("Snapshot {$period} dibuat untuk {$n} risiko.");
+    }
+
+    /** Berita acara reviu per periode (PDF) dengan daftar penandatangan (F-REV-04). */
+    public function minutes(Request $request)
+    {
+        $this->authorize('viewAny', Review::class);
+        $period = $request->validate(['period' => ['required', 'string', 'max:20']])['period'];
+        $q = Review::with(['risk:id,code,name,unit_id,residual_level', 'risk.unit:id,name', 'reviewer:id,name,position'])->where('period', $period)->orderBy('created_at');
+        if ($request->user()->isUnitScoped()) {
+            $q->whereIn('risk_id', \App\Support\UnitScope::riskIdsQuery($request->user()));
+        }
+        $reviews = $q->get();
+        abort_if($reviews->isEmpty(), 404, 'Belum ada reviu pada periode ini.');
+        $signers = $reviews->groupBy('reviewer_id')->map(fn ($g) => ['name' => $g->first()->reviewer?->name, 'position' => $g->first()->reviewer?->position, 'at' => $g->max('signed_at'), 'ip' => $g->sortByDesc('signed_at')->first()->signed_ip, 'n' => $g->count()])->values();
+        \App\Models\AuditLog::record('exported', $request->user(), ['minutes' => [null, $period]], 'reviews.minutes');
+        return \Barryvdh\DomPDF\Facade\Pdf::loadView('reports.review_minutes', ['title' => "Berita Acara Reviu Risiko {$period}", 'org' => $request->user()->organization?->name, 'generated_at' => now(), 'by' => $request->user()->name, 'params' => [],
+            'period' => $period, 'reviews' => $reviews, 'signers' => $signers])->download("berita-acara-reviu-{$period}.pdf");
     }
 }
