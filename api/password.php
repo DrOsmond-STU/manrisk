@@ -16,11 +16,8 @@ if (!password_verify($current, $user['hash'])) {
     mr_log('password_fail', $user['email']);
     mr_json(422, ['error' => 'Kata sandi saat ini salah.', 'field' => 'current']);
 }
-if (mb_strlen($next) < MR_MIN_PASSWORD) {
-    mr_json(422, ['error' => sprintf('Kata sandi baru minimal %d karakter.', MR_MIN_PASSWORD), 'field' => 'next']);
-}
-if (!preg_match('/[A-Za-z]/', $next) || !preg_match('/\d/', $next)) {
-    mr_json(422, ['error' => 'Kata sandi baru harus memuat huruf dan angka.', 'field' => 'next']);
+if ($msg = mr_check_password($next)) {
+    mr_json(422, ['error' => $msg, 'field' => 'next']);
 }
 if (hash_equals($current, $next)) {
     mr_json(422, ['error' => 'Kata sandi baru harus berbeda dari yang lama.', 'field' => 'next']);

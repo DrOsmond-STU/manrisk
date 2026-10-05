@@ -43,6 +43,7 @@ Di server, aplikasi dikunci di balik login (PHP, tanpa basis data):
 | `server/seed.php` | Membuat akun awal: `php server/seed.php --out ../manrisk-data/users.json` |
 | `api/session.php`, `api/login.php`, `api/logout.php`, `api/password.php` | API sesi, masuk, keluar, ganti kata sandi |
 | `api/asset.php` | Gerbang berkas JavaScript: `assets/*.js` hanya dikirim ke sesi yang sudah masuk (lihat `.htaccess`) |
+| `api/users.php` | Pengelolaan akun untuk Super Admin: daftar, tambah, ubah, reset sandi, aktif/nonaktif, hapus, log keamanan |
 
 Data akun disimpan **di luar folder publik**: `../manrisk-data/users.json` (atau folder pada variabel
 lingkungan `MR_DATA_DIR`). Berkas ini tidak pernah masuk repo. Aturan keamanan yang berlaku:
@@ -52,6 +53,12 @@ lingkungan `MR_DATA_DIR`). Berkas ini tidak pernah masuk repo. Aturan keamanan y
 - sesi berakhir setelah 30 menit tanpa aktivitas atau 8 jam sejak masuk;
 - semua percobaan masuk, keluar, dan ganti kata sandi dicatat di `manrisk-data/auth.log`;
 - peran pengguna (Super Admin … Auditor) ditentukan oleh akunnya, bukan dipilih di layar.
+
+Akun dikelola dari menu **Pengguna & Akun** (hanya Super Admin): tambah pengguna dengan sandi
+sementara yang tampil sekali, ubah nama/email/peran/unit, reset sandi, nonaktifkan, dan hapus akun
+yang belum pernah masuk. Pengguna dengan sandi sementara wajib membuat sandi baru saat masuk.
+Super Admin tidak dapat menonaktifkan dirinya sendiri, dan harus selalu tersisa minimal satu
+Super Admin aktif.
 
 Tanpa server PHP (membuka `index.html` langsung atau pratinjau), aplikasi berjalan dalam **mode demo**
 dengan pemilih peran di bilah atas.
@@ -107,6 +114,7 @@ Data dibangkitkan secara deterministik, jadi demo selalu menampilkan isi yang sa
 | Pelaporan & Dokumen | Laporan | #23, #31 — katalog 13 laporan (PDF/Excel/Word), AI Generate Executive Report |
 | | Dokumen & Bukti | #21 — versi, metadata, status persetujuan, tanggal kedaluwarsa, unggah |
 | Administrasi | Organisasi & Pengguna | #2, #27, #28 — pohon organisasi, multi-organisasi, pengguna, matriks RBAC, konfigurasi alur |
+| | Pengguna & Akun | #28 — pengelolaan akun login (Super Admin): tambah, ubah, reset sandi, nonaktifkan, log keamanan |
 | | Audit Trail | #22 — pengguna, aktivitas, nilai sebelum → sesudah, IP |
 | AI | AI Risk Assistant | #30 — identifikasi, risk statement, rekomendasi mitigasi, analisis perubahan, ringkasan |
 

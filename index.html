@@ -76,6 +76,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html, body { height: 100%; }
 body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 var(--f-body); -webkit-font-smoothing: antialiased; }
 h1, h2, h3, h4 { font-family: var(--f-display); margin: 0; text-wrap: balance; letter-spacing: -.01em; }
@@ -651,6 +652,8 @@ button.kpi:hover { transform: translateY(-3px); box-shadow: var(--float-md); }
 .um-i.danger { color: var(--bad-ink); }
 .modal { position: fixed; z-index: 62; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(440px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow-y: auto; background: var(--surface); border-radius: 16px; box-shadow: 0 24px 60px rgba(4, 35, 79, .28); }
 .modal .drawer-h h3 { font-size: 16px; }
+.pw-show { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 10px; background: var(--surface-2); border: 1px dashed var(--line-2); }
+.pw-show code { flex: 1; font-family: var(--f-mono); font-size: 18px; letter-spacing: .06em; user-select: all; word-break: break-all; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
@@ -670,8 +673,8 @@ button.kpi:hover { transform: translateY(-3px); box-shadow: var(--float-md); }
 <div class="toasts" id="toasts" aria-live="polite"></div>
 <div class="tip" id="tip" hidden></div>
 <!-- Naikkan ?v= setiap kali berkas JS berubah, supaya browser dan proxy tidak memakai salinan lama. -->
-<script src="assets/data.js?v=4"></script>
-<script src="assets/demo-data.js?v=4"></script>
-<script src="assets/app.js?v=4"></script>
+<script src="assets/data.js?v=5"></script>
+<script src="assets/demo-data.js?v=5"></script>
+<script src="assets/app.js?v=5"></script>
 </body>
 </html>

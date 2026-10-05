@@ -90,7 +90,9 @@
     send: '<path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/>',
     upload: '<path d="M12 16V4m0 0-5 5m5-5 5 5M5 20h14"/>',
     info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
-    lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>'
+    lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+    key: '<circle cx="8" cy="15" r="4"/><path d="m10.9 12.1 9.1-9.1M15 7l3 3M12 10l3 3"/>',
+    copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>'
   };
   const ic = (n) => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${IC[n] || ''}</svg>`;
 
@@ -121,7 +123,8 @@
     report: null, reportBusy: false, reportPeriod: 'TW III 2026',
     revPeriod: 'TW III 2026',
     auditQ: '',
-    nav: false, overlay: null, ctrlSel: null,
+    nav: false, overlay: null, ctrlSel: null, forcePwd: false,
+    um: { tab: 'list', list: null, log: null, roles: [], me: null, busy: false, err: '', edit: null, result: null, q: '' },
     lastRoute: null,
     pg: { reg: 1, act: 1, audit: 1 }
   };
@@ -179,10 +182,10 @@
     { g: 'Pemantauan', items: [['incidents', 'Insiden & Loss Event', 'alert']] },
     { g: 'Tata Kelola', items: [['objective', 'Pemetaan Sasaran', 'flag'], ['governance', 'Taksonomi & Appetite', 'layers'], ['iso', 'Kerangka ISO 31000', 'book'], ['workflow', 'Persetujuan', 'inbox']] },
     { g: 'Pelaporan & Dokumen', items: [['reports', 'Laporan', 'file'], ['documents', 'Dokumen & Bukti', 'folder']] },
-    { g: 'Administrasi', items: [['org', 'Organisasi & Pengguna', 'users'], ['audit', 'Audit Trail', 'clock']] },
+    { g: 'Administrasi', items: [['org', 'Organisasi & Pengguna', 'users'], ['users', 'Pengguna & Akun', 'key'], ['audit', 'Audit Trail', 'clock']] },
     { g: 'AI', items: [['ai', 'AI Risk Assistant', 'spark']] }
   ];
-  const allowed = (id) => { const n = roleCfg().nav; return n === 'all' || n.includes(id); };
+  const allowed = (id) => { if (id === 'users') return S.role === 'Super Admin'; const n = roleCfg().nav; return n === 'all' || n.includes(id); };
   const firstAllowed = () => { for (const g of NAV) for (const it of g.items) if (allowed(it[0])) return it[0]; return 'register'; };
 
   function route() {
@@ -773,7 +776,7 @@
       const node = (n) => `<li><span class="tn"><span>${esc(n.n)}</span><span class="tt">${esc(n.t)}</span>${n.c ? `<span class="tc">${n.c} risiko</span>` : ''}</span>${n.k ? `<ul>${n.k.map(node).join('')}</ul>` : ''}</li>`;
       body = `<div class="grid g-12"><div class="s-8">${card('Struktur organisasi & risiko', `<div class="tree"><ul>${node(D.ORG_TREE)}</ul></div>`, { sub: 'Organisasi → Unit → Program → Kegiatan → Proses bisnis' })}</div><div class="s-4">${card('Multi-organisasi', `<p class="fg2" style="font-size:13px">Satu instalasi dapat melayani holding, kementerian, pemerintah daerah, rumah sakit, atau perguruan tinggi dengan data yang terpisah.</p><div class="stack" style="margin-top:12px">${[['Badan Layanan Digital Nusantara', 'Aktif · 127 risiko'], ['RSUD Kota Contoh', 'Tenant demo · 54 risiko'], ['Universitas Contoh', 'Tenant demo · 88 risiko']].map(([a, b], i) => `<div class="row between"><span><b style="font-size:13px">${a}</b><br><span class="hint">${b}</span></span>${i === 0 ? '<span class="pill ok">Aktif</span>' : ''}</div>`).join('')}</div>`)}</div></div>`;
     } else if (t === 'users') {
-      body = card('Pengguna', `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Nama</th><th>Unit</th><th>Peran</th><th>Login terakhir</th><th></th></tr></thead><tbody>${D.USERS.map((u) => `<tr><td><div class="row" style="gap:10px;flex-wrap:nowrap"><span class="avatar">${initials(u.n) || u.n[0]}</span><div><div class="t-main">${esc(u.n)}</div><div class="t-sub">${esc(u.e)}</div></div></div></td><td>${esc(u.unit)}</td><td><span class="pill run">${u.role}</span></td><td class="fg2">${u.last}</td><td><button class="btn sm ghost" ${W()} data-act="toast" data-v="Ubah pengguna ${esc(u.n)} (simulasi)">Ubah</button></td></tr>`).join('')}</tbody></table></div>`, { flush: true, extra: `<button class="btn sm pri" ${W()} data-act="toast" data-v="Undang pengguna (simulasi)">${ic('plus')}Pengguna</button>` });
+      body = card('Pengguna', `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Nama</th><th>Unit</th><th>Peran</th><th>Login terakhir</th><th></th></tr></thead><tbody>${D.USERS.map((u) => `<tr><td><div class="row" style="gap:10px;flex-wrap:nowrap"><span class="avatar">${initials(u.n) || u.n[0]}</span><div><div class="t-main">${esc(u.n)}</div><div class="t-sub">${esc(u.e)}</div></div></div></td><td>${esc(u.unit)}</td><td><span class="pill run">${u.role}</span></td><td class="fg2">${u.last}</td><td><button class="btn sm ghost" ${W()} data-act="toast" data-v="Ubah pengguna ${esc(u.n)} (simulasi)">Ubah</button></td></tr>`).join('')}</tbody></table></div>`, { flush: true, sub: 'data organisasi (contoh)', extra: allowed('users') ? `<a class="btn sm c-teal" href="#users">${ic('key')}Kelola akun login →</a>` : `<button class="btn sm pri" ${W()} data-act="toast" data-v="Pengelolaan akun hanya untuk Super Admin">${ic('plus')}Pengguna</button>` });
     } else if (t === 'roles') {
       const R = Object.keys(D.ROLES);
       body = card('Role based access control', `<div class="tbl-wrap"><table class="tbl matrix-tbl"><thead><tr><th>Hak akses</th>${R.map((r) => `<th style="white-space:normal;min-width:84px">${r}</th>`).join('')}</tr></thead><tbody>${D.PRIVS.map((p, i) => `<tr><td class="t-main">${p}</td>${R.map((r) => (D.ROLES[r].p[i] ? '<td class="yes" aria-label="ya">✓</td>' : '<td class="no" aria-label="tidak">–</td>')).join('')}</tr>`).join('')}<tr><td class="t-sub">Deskripsi</td>${R.map((r) => `<td class="t-sub" style="white-space:normal">${D.ROLES[r].d}</td>`).join('')}</tr></tbody></table></div><p class="hint" style="padding:10px 16px 0">Coba ganti peran di bilah atas untuk melihat menu dan tombol menyesuaikan hak akses.</p>`, { flush: true });
@@ -788,6 +791,57 @@
     const rows = S.audit.filter((a) => !q || `${a.u} ${a.a} ${a.ref} ${a.f} ${a.p} ${a.n}`.toLowerCase().includes(q)), pg = paged('audit', rows);
     return `${ph('Governance · Akuntabilitas', 'Audit Trail', 'Seluruh aktivitas pengguna tercatat beserta nilai sebelum dan sesudah perubahan, untuk kebutuhan audit dan tata kelola.', `<button class="btn" data-act="toast" data-v="Audit trail diekspor ke Excel (simulasi)">${ic('down')}Ekspor</button>`)}
     <section class="card"><div class="card-b"><div class="fbar"><input class="inp" type="search" id="audit-q" data-auditq placeholder="Cari pengguna, aktivitas, objek…" value="${esc(S.auditQ)}" aria-label="Cari audit trail"><span class="hint">${rows.length} entri</span></div></div>${auditTable(pg.rows)}${pager('audit', pg)}</section>`;
+  };
+
+  /* --- Pengguna & Akun (Super Admin) --- */
+  const DEMO_USERS = () => D.USERS.map((u, i) => ({ id: 'demo' + i, email: u.e, name: u.n, role: u.role, unit: u.unit, active: i !== 7, lastLogin: null, lastText: u.last, mustChange: i === 8, created: '2026-01-15T00:00:00+07:00' }));
+  async function loadUsers(force) {
+    if (!AUTH) { S.um.list = S.um.list || DEMO_USERS(); S.um.roles = Object.keys(D.ROLES); S.um.me = 'demo1'; return; }
+    if (S.um.list && !force) return;
+    const r = await fetch('api/users.php', { credentials: 'same-origin', cache: 'no-store' });
+    const j = await r.json().catch(() => ({}));
+    if (r.status === 401) { location.replace('./'); return; }
+    if (!r.ok) throw new Error(j.error || 'Gagal memuat akun');
+    Object.assign(S.um, { list: j.users, roles: j.roles, me: j.me });
+  }
+  async function loadLog() {
+    if (!AUTH) { S.um.log = S.audit.slice(0, 40).map((a) => ({ t: a.t.replace(' ', 'T') + ':00', ip: a.ip, event: 'audit', email: a.u, detail: `${a.a} ${a.ref}` })); return; }
+    const r = await fetch('api/users.php?log=1', { credentials: 'same-origin', cache: 'no-store' });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || 'Gagal memuat log');
+    S.um.log = j.log;
+  }
+  const EVENT_LABEL = { login_ok: ['Masuk', 'ok'], login_fail: ['Masuk gagal', 'bad'], login_locked: ['Terkunci', 'bad'], logout: ['Keluar', ''], password_changed: ['Ganti sandi', 'run'], password_fail: ['Ganti sandi gagal', 'warn'], user_create: ['Akun dibuat', 'ok'], user_update: ['Akun diubah', 'run'], user_reset: ['Sandi direset', 'warn'], user_activate: ['Diaktifkan', 'ok'], user_deactivate: ['Dinonaktifkan', 'bad'], user_delete: ['Akun dihapus', 'bad'], users_forbidden: ['Akses ditolak', 'bad'], audit: ['Aktivitas', ''] };
+  const fmtIso = (iso) => { if (!iso) return '—'; const d = new Date(iso); if (isNaN(d)) return esc(iso); return `${d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })} ${d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}`; };
+  const rolePill = (r) => `<span class="pill ${r === 'Super Admin' ? 'bad' : r === 'Auditor' || r === 'Management' ? '' : 'run'}">${esc(r)}</span>`;
+
+  V.users = function () {
+    const um = S.um;
+    if (um.list === null && !um.busy) {
+      um.busy = true; um.err = '';
+      loadUsers().then(() => { um.busy = false; render(true); }).catch((e) => { um.busy = false; um.err = e.message; render(true); });
+    }
+    if (um.tab === 'log' && um.log === null && !um.busy) {
+      um.busy = true; loadLog().then(() => { um.busy = false; render(true); }).catch((e) => { um.busy = false; um.err = e.message; render(true); });
+    }
+    const list = um.list || [], q = um.q.toLowerCase();
+    const rows = list.filter((u) => !q || `${u.name} ${u.email} ${u.role} ${u.unit}`.toLowerCase().includes(q));
+    const n = (f) => list.filter(f).length;
+    let body = '';
+    if (um.err) body = `<div class="ro-banner" style="background:color-mix(in oklab,var(--lv-vh) 12%,var(--surface));color:var(--bad-ink)">${ic('alert')}<span>${esc(um.err)}</span><button class="btn sm ghost c-indigo" data-act="um-reload" style="margin-left:auto">Coba lagi</button></div>`;
+    else if (um.busy && (um.tab === 'list' ? !um.list : !um.log)) body = `<div class="empty"><span class="typing"><i></i><i></i><i></i></span><br>Memuat…</div>`;
+    else if (um.tab === 'list') {
+      body = card('', `<div class="card-b" style="padding-bottom:0"><div class="fbar"><input class="inp" id="um-q" type="search" placeholder="Cari nama, email, peran, unit…" value="${esc(um.q)}" data-umq aria-label="Cari akun"><span class="hint">${rows.length} dari ${list.length} akun</span></div></div>
+        <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Pengguna</th><th>Peran</th><th>Unit</th><th>Terakhir masuk</th><th>Status</th><th></th></tr></thead><tbody>${rows.length ? rows.map((u) => { const me = u.id === um.me; return `<tr style="${u.active ? '' : 'opacity:.6'}"><td><div class="row" style="gap:10px;flex-wrap:nowrap"><span class="avatar">${initials(u.name) || u.name[0]}</span><div><div class="t-main">${esc(u.name)}${me ? ' <span class="pill run" style="font-size:10.5px">Anda</span>' : ''}</div><div class="t-sub mono">${esc(u.email)}</div></div></div></td><td>${rolePill(u.role)}</td><td class="fg2">${esc(u.unit || '—')}</td><td class="fg2" style="white-space:nowrap">${u.lastText ? esc(u.lastText) : u.lastLogin ? fmtIso(u.lastLogin) : '<span class="muted">Belum pernah</span>'}</td><td><span class="row" style="gap:4px">${u.active ? '<span class="pill ok">Aktif</span>' : '<span class="pill bad">Nonaktif</span>'}${u.mustChange ? '<span class="pill warn" title="Wajib ganti kata sandi saat masuk">Sandi sementara</span>' : ''}</span></td><td style="white-space:nowrap"><span class="row" style="gap:4px;flex-wrap:nowrap;justify-content:flex-end"><button class="btn sm ghost c-amber" data-act="um-edit" data-v="${u.id}">Ubah</button><button class="btn sm ghost c-cyan" data-act="um-reset" data-v="${u.id}">Reset sandi</button>${me ? '' : `<button class="btn sm ghost ${u.active ? 'c-red' : 'c-green'}" data-act="um-toggle" data-v="${u.id}">${u.active ? 'Nonaktifkan' : 'Aktifkan'}</button>`}${!me && !u.lastLogin && !u.lastText ? `<button class="btn sm ghost c-red" data-act="um-delete" data-v="${u.id}" aria-label="Hapus ${esc(u.name)}">${ic('x')}</button>` : ''}</span></td></tr>`; }).join('') : '<tr><td colspan="6"><div class="empty">Tidak ada akun yang cocok.</div></td></tr>'}</tbody></table></div>`, { flush: true });
+    } else {
+      const log = um.log || [];
+      body = card('Log keamanan', `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Waktu</th><th>Peristiwa</th><th>Akun</th><th>Keterangan</th><th>IP</th></tr></thead><tbody>${log.length ? log.map((l) => { const lab = EVENT_LABEL[l.event] || [l.event, '']; return `<tr><td class="mono" style="white-space:nowrap">${fmtIso(l.t)}</td><td><span class="pill ${lab[1]}">${esc(lab[0])}</span></td><td class="mono">${esc(l.email)}</td><td class="fg2" style="min-width:220px">${esc(l.detail || '—')}</td><td class="mono muted">${esc(l.ip)}</td></tr>`; }).join('') : '<tr><td colspan="5"><div class="empty">Belum ada entri.</div></td></tr>'}</tbody></table></div>`, { flush: true, sub: `${log.length} entri terakhir`, extra: `<button class="btn sm ghost c-indigo" data-act="um-reload">${ic('refresh')}Muat ulang</button>` });
+    }
+    return `${ph('Administrasi · Super Admin', 'Pengguna & Akun', 'Kelola akun yang dapat masuk ke ManRisk. Peran menentukan menu dan hak akses; kata sandi sementara wajib diganti saat pertama masuk.', `<button class="btn pri c-teal" data-act="um-new">${ic('plus')}Tambah pengguna</button>`)}
+    ${AUTH ? '' : `<div class="ro-banner">${ic('info')}<span><b>Mode demo:</b> perubahan hanya tersimpan di browser ini dan tidak dikirim ke server.</span></div>`}
+    <div class="kpis">${kpi('Total akun', list.length, '')}${kpi('Aktif', n((u) => u.active), 'dapat masuk', 'lvl', '--c:var(--lv-l)')}${kpi('Nonaktif', n((u) => !u.active), 'ditolak saat masuk', 'lvl', '--c:var(--lv-vh)')}${kpi('Belum pernah masuk', n((u) => !u.lastLogin && !u.lastText), 'akun baru / sandi sementara')}${kpi('Super Admin aktif', n((u) => u.active && u.role === 'Super Admin'), 'minimal 1')}</div>
+    ${tabs('umtab', [['list', 'Akun', list.length], ['log', 'Log keamanan']], um.tab)}
+    ${body}`;
   };
 
   /* --- AI Assistant --- */
@@ -891,13 +945,36 @@
       const u = AUTH ? AUTH.user : { name: ME(), role: S.role, email: 'demo@manrisk.id', unit: 'Mode demo' };
       o.innerHTML = `<div class="scrim clear" data-act="close-ov"></div><div class="umenu" role="menu"><div class="um-h"><span class="avatar">${initials(u.name) || u.name[0]}</span><div><b>${esc(u.name)}</b><div class="muted" style="font-size:12px">${esc(u.role)} · ${esc(u.unit || '')}</div><div class="mono muted" style="font-size:11.5px">${esc(u.email)}</div></div></div>
         ${AUTH ? `<div class="hint" style="padding:0 14px 8px">${fmtLogin(AUTH.user.lastLogin)}</div><button type="button" class="um-i" role="menuitem" data-act="pwd-open">${ic('lock')}Ganti kata sandi</button><button type="button" class="um-i" role="menuitem" data-act="theme">${ic('moon')}Ganti tema</button><button type="button" class="um-i danger" role="menuitem" data-act="logout">${ic('x')}Keluar</button>` : `<div class="hint" style="padding:0 14px 12px">Pratinjau tanpa server: peran dapat diganti lewat pilihan di bilah atas. Di server, akun login menentukan peran.</div>`}</div>`;
+    } else if (S.overlay === 'uform') {
+      const e = S.um.edit || {}, isNew = !e.id, units = Array.from(new Set(D.UNITS.concat(['Unit Manajemen Risiko', 'Pimpinan', 'Sekretariat Utama']).concat(e.unit ? [e.unit] : [])));
+      o.innerHTML = `<div class="scrim" data-act="close-ov"></div><form class="modal" data-form="uform" role="dialog" aria-labelledby="uf-t"><div class="drawer-h"><h3 id="uf-t">${isNew ? 'Tambah pengguna' : 'Ubah akun'}</h3><button type="button" class="icon-btn c-indigo" data-act="close-ov" aria-label="Tutup">${ic('x')}</button></div>
+        <div class="stack" style="padding:16px"><div class="form-grid" style="grid-template-columns:1fr 1fr"><div class="field" style="grid-column:1/-1"><label for="uf-name">Nama lengkap</label><input class="inp" id="uf-name" value="${esc(e.name || '')}" required maxlength="80" autocomplete="off"></div>
+        <div class="field" style="grid-column:1/-1"><label for="uf-email">Email (dipakai untuk masuk)</label><input class="inp" id="uf-email" type="email" value="${esc(e.email || '')}" required maxlength="120" autocomplete="off"></div>
+        <div class="field"><label for="uf-role">Peran</label><select id="uf-role">${S.um.roles.map((r) => opt(r, r, e.role || 'Risk Officer')).join('')}</select></div>
+        <div class="field"><label for="uf-unit">Unit kerja</label><input class="inp" id="uf-unit" list="uf-units" value="${esc(e.unit || '')}" maxlength="80"><datalist id="uf-units">${units.map((u) => `<option value="${esc(u)}">`).join('')}</datalist></div>
+        ${isNew ? `<div class="field" style="grid-column:1/-1"><label for="uf-pass">Kata sandi awal</label><input class="inp" id="uf-pass" type="text" autocomplete="off" placeholder="Kosongkan agar dibuat otomatis"><span class="hint">Minimal 10 karakter dengan huruf dan angka. Jika dikosongkan, sistem membuat sandi sementara yang hanya ditampilkan sekali.</span></div>
+        <label class="row" style="grid-column:1/-1;gap:8px"><input type="checkbox" id="uf-must" checked style="width:18px;height:18px;accent-color:var(--accent)"><span>Wajib ganti kata sandi saat pertama masuk</span></label>` : `<label class="row" style="grid-column:1/-1;gap:8px"><input type="checkbox" id="uf-active" ${e.active ? 'checked' : ''} ${e.id === S.um.me ? 'disabled' : ''} style="width:18px;height:18px;accent-color:var(--accent)"><span>Akun aktif${e.id === S.um.me ? ' <span class="hint">(akun sendiri tidak dapat dinonaktifkan)</span>' : ''}</span></label>`}</div>
+        <div class="ro-banner" id="uf-err" hidden style="background:color-mix(in oklab,var(--lv-vh) 12%,var(--surface));color:var(--bad-ink)"></div></div>
+        <div class="row" style="justify-content:flex-end;padding:0 16px 16px"><button type="button" class="btn ghost c-indigo" data-act="close-ov">Batal</button><button type="submit" class="btn c-green" id="uf-go">${isNew ? 'Buat akun' : 'Simpan perubahan'}</button></div></form>`;
+      const first = $('#uf-name'); if (first) first.focus();
+    } else if (S.overlay === 'ureset') {
+      const e = S.um.edit || {};
+      o.innerHTML = `<div class="scrim" data-act="close-ov"></div><div class="modal" role="dialog" aria-labelledby="ur-t"><div class="drawer-h"><h3 id="ur-t">Reset kata sandi</h3><button type="button" class="icon-btn c-indigo" data-act="close-ov" aria-label="Tutup">${ic('x')}</button></div>
+        <div class="stack" style="padding:16px"><p>Kata sandi <b>${esc(e.name)}</b> (${esc(e.email)}) akan diganti dengan sandi sementara yang hanya ditampilkan sekali. Pengguna wajib membuat sandi baru saat masuk berikutnya.${e.id === S.um.me ? '<br><br><b>Ini akun Anda sendiri.</b> Setelah reset, Anda harus mengganti sandi saat masuk berikutnya.' : ''}</p></div>
+        <div class="row" style="justify-content:flex-end;padding:0 16px 16px"><button type="button" class="btn ghost c-indigo" data-act="close-ov">Batal</button><button type="button" class="btn c-orange" data-act="um-reset-go" data-v="${e.id}">Reset sekarang</button></div></div>`;
+    } else if (S.overlay === 'uresult') {
+      const r = S.um.result || {};
+      o.innerHTML = `<div class="scrim"></div><div class="modal" role="dialog" aria-labelledby="ux-t"><div class="drawer-h"><h3 id="ux-t">${esc(r.title)}</h3></div>
+        <div class="stack" style="padding:16px"><p>${r.body}</p><div class="pw-show"><code id="pw-val">${esc(r.password)}</code><button type="button" class="btn sm c-blue" data-act="um-copy">${ic('copy')}Salin</button></div><p class="hint">Sandi ini <b>tidak disimpan</b> dan tidak dapat ditampilkan lagi. Sampaikan kepada pengguna lewat saluran yang aman.</p></div>
+        <div class="row" style="justify-content:flex-end;padding:0 16px 16px"><button type="button" class="btn c-green" data-act="close-ov">Sudah saya catat</button></div></div>`;
     } else if (S.overlay === 'pwd') {
-      o.innerHTML = `<div class="scrim" data-act="close-ov"></div><form class="modal" data-form="pwd" role="dialog" aria-labelledby="pwd-t"><div class="drawer-h"><h3 id="pwd-t">Ganti kata sandi</h3><button type="button" class="icon-btn c-indigo" data-act="close-ov" aria-label="Tutup">${ic('x')}</button></div>
+      const forced = S.forcePwd;
+      o.innerHTML = `<div class="scrim" ${forced ? '' : 'data-act="close-ov"'}></div><form class="modal" data-form="pwd" role="dialog" aria-labelledby="pwd-t"><div class="drawer-h"><h3 id="pwd-t">${forced ? 'Buat kata sandi baru' : 'Ganti kata sandi'}</h3>${forced ? '' : `<button type="button" class="icon-btn c-indigo" data-act="close-ov" aria-label="Tutup">${ic('x')}</button>`}</div>${forced ? `<div class="ro-banner" style="margin:12px 16px 0">${ic('lock')}<span>Anda masuk dengan kata sandi sementara. Buat kata sandi baru untuk melanjutkan.</span></div>` : ''}
         <div class="stack" style="padding:16px"><div class="field"><label for="pw-cur">Kata sandi saat ini</label><input class="inp" id="pw-cur" type="password" autocomplete="current-password" required></div>
         <div class="field"><label for="pw-new">Kata sandi baru</label><input class="inp" id="pw-new" type="password" autocomplete="new-password" minlength="10" required><span class="hint">Minimal 10 karakter, memuat huruf dan angka.</span></div>
         <div class="field"><label for="pw-rep">Ulangi kata sandi baru</label><input class="inp" id="pw-rep" type="password" autocomplete="new-password" required></div>
         <div class="ro-banner" id="pw-err" hidden style="background:color-mix(in oklab,var(--lv-vh) 12%,var(--surface));color:var(--bad-ink)"></div></div>
-        <div class="row" style="justify-content:flex-end;padding:0 16px 16px"><button type="button" class="btn ghost c-indigo" data-act="close-ov">Batal</button><button type="submit" class="btn c-green" id="pw-go">Simpan kata sandi</button></div></form>`;
+        <div class="row" style="justify-content:flex-end;padding:0 16px 16px">${forced ? '' : '<button type="button" class="btn ghost c-indigo" data-act="close-ov">Batal</button>'}<button type="submit" class="btn c-green" id="pw-go">Simpan kata sandi</button></div></form>`;
     } else if (S.overlay === 'notif') {
       o.innerHTML = `<div class="scrim" data-act="close-ov"></div><aside class="drawer" role="dialog" aria-label="Early warning"><div class="drawer-h"><h3>Early warning</h3><button class="icon-btn" data-act="close-ov" aria-label="Tutup">${ic('x')}</button></div><div class="drawer-b">${feed(WARNINGS)}</div></aside>`;
     } else if (S.nav) {
@@ -939,6 +1016,44 @@
     notif: () => { S.overlay = 'notif'; renderOverlay(); },
     'close-ov': () => { S.overlay = null; renderOverlay(); },
     umenu: () => { S.overlay = S.overlay === 'umenu' ? null : 'umenu'; renderOverlay(); },
+    umtab: (el) => { S.um.tab = el.dataset.v; S.um.err = ''; render(true); },
+    'um-reload': () => { S.um.err = ''; if (S.um.tab === 'log') S.um.log = null; else S.um.list = AUTH ? null : S.um.list; render(true); },
+    'um-new': () => { S.um.edit = null; S.overlay = 'uform'; renderOverlay(); },
+    'um-edit': (el) => { S.um.edit = S.um.list.find((u) => u.id === el.dataset.v); S.overlay = 'uform'; renderOverlay(); },
+    'um-reset': (el) => { S.um.edit = S.um.list.find((u) => u.id === el.dataset.v); S.overlay = 'ureset'; renderOverlay(); },
+    'um-reset-go': async (el) => {
+      const u = S.um.list.find((x) => x.id === el.dataset.v);
+      try {
+        let temp;
+        if (AUTH) { const j = await api('api/users.php', { action: 'reset', id: u.id }); temp = j.tempPassword; Object.assign(S.um, { list: j.users, log: null }); }
+        else { temp = 'Demo' + Math.random().toString(36).slice(2, 8) + '9x'; u.mustChange = true; }
+        S.um.result = { title: 'Kata sandi sementara', body: `Sandi sementara untuk <b>${esc(u.name)}</b> (${esc(u.email)}):`, password: temp };
+        S.overlay = 'uresult'; render(true);
+      } catch (e) { toast(e.message); }
+    },
+    'um-toggle': async (el) => {
+      const u = S.um.list.find((x) => x.id === el.dataset.v);
+      try {
+        if (AUTH) { const j = await api('api/users.php', { action: 'toggle', id: u.id }); Object.assign(S.um, { list: j.users, log: null }); }
+        else u.active = !u.active;
+        toast(`${u.name} ${u.active ? 'diaktifkan' : 'dinonaktifkan'}`); render(true);
+      } catch (e) { toast(e.message); }
+    },
+    'um-delete': async (el) => {
+      const u = S.um.list.find((x) => x.id === el.dataset.v);
+      if (!el.dataset.sure) { el.dataset.sure = '1'; el.textContent = 'Hapus?'; el.classList.remove('ghost'); setTimeout(() => { if (el.isConnected) { delete el.dataset.sure; el.innerHTML = ic('x'); el.classList.add('ghost'); } }, 3000); return; }
+      try {
+        if (AUTH) { const j = await api('api/users.php', { action: 'delete', id: u.id }); Object.assign(S.um, { list: j.users, log: null }); }
+        else S.um.list = S.um.list.filter((x) => x.id !== u.id);
+        toast(`Akun ${u.email} dihapus`); render(true);
+      } catch (e) { toast(e.message); render(true); }
+    },
+    'um-copy': (el) => {
+      const v = $('#pw-val').textContent;
+      const sel = () => { const r = document.createRange(); r.selectNodeContents($('#pw-val')); const s2 = getSelection(); s2.removeAllRanges(); s2.addRange(r); };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(v).then(() => toast('Kata sandi disalin')).catch(() => { sel(); toast('Pilih dan salin secara manual'); });
+      else { sel(); toast('Pilih dan salin secara manual'); }
+    },
     'pwd-open': () => { S.overlay = 'pwd'; renderOverlay(); const i = $('#pw-cur'); if (i) i.focus(); },
     logout: () => { if (AUTH) logout(); else toast('Mode demo: tidak ada sesi untuk diakhiri'); },
     theme: () => {
@@ -1024,7 +1139,7 @@
   });
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && e.target.matches('tr[data-go]')) location.hash = e.target.dataset.go;
-    if (e.key === 'Escape' && (S.overlay || S.nav)) { S.overlay = null; S.nav = false; renderOverlay(); }
+    if (e.key === 'Escape' && (S.overlay || S.nav) && !(S.overlay === 'pwd' && S.forcePwd) && S.overlay !== 'uresult') { S.overlay = null; S.nav = false; renderOverlay(); }
   });
   document.addEventListener('change', (e) => {
     const t = e.target;
@@ -1052,6 +1167,7 @@
     }
     if (t.matches('[data-wza]')) { const [i, k] = t.dataset.wza.split(':'); S.wz.d.actions[+i][k] = t.value; }
     if (t.matches('#reg-q')) { S.reg.q = t.value; S.pg.reg = 1; clearTimeout(t._t); t._t = setTimeout(() => { render(true); const el = $('#reg-q'); if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); } }, 250); }
+    if (t.matches('[data-umq]')) { S.um.q = t.value; clearTimeout(t._t); t._t = setTimeout(() => { render(true); const el = $('#um-q'); if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); } }, 250); }
     if (t.matches('[data-auditq]')) { S.auditQ = t.value; S.pg.audit = 1; clearTimeout(t._t); t._t = setTimeout(() => { render(true); const el = $('#audit-q'); if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); } }, 250); }
   });
   document.addEventListener('submit', (e) => {
@@ -1059,13 +1175,42 @@
     const f = e.target.dataset.form;
     if (f === 'search') { const q = $('#gq').value.trim(); S.reg = { q, lv: '', unit: '', cat: '', st: '', cell: '', sort: 'res' }; S.pg.reg = 1; if (allowed('register')) location.hash = 'register'; if (route().id === 'register') render(true); }
     if (f === 'ai') { const i = $('#ai-in'); const q = i.value.trim(); i.value = ''; askAI(q); }
+    if (f === 'uform') {
+      const e = S.um.edit, isNew = !e, err = $('#uf-err'), go = $('#uf-go');
+      const fail = (m) => { err.textContent = m; err.hidden = false; go.disabled = false; go.textContent = isNew ? 'Buat akun' : 'Simpan perubahan'; };
+      const body = { name: $('#uf-name').value.trim(), email: $('#uf-email').value.trim(), role: $('#uf-role').value, unit: $('#uf-unit').value.trim() };
+      if (body.name.length < 2) { fail('Nama minimal 2 karakter.'); return; }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email)) { fail('Alamat email tidak valid.'); return; }
+      go.disabled = true; go.textContent = 'Menyimpan…';
+      (async () => {
+        if (isNew) {
+          const pw = $('#uf-pass').value, must = $('#uf-must').checked;
+          if (AUTH) {
+            const j = await api('api/users.php', Object.assign({ action: 'create', password: pw, mustChange: must }, body));
+            Object.assign(S.um, { list: j.users, log: null });
+            if (j.tempPassword) { S.um.result = { title: 'Akun dibuat', body: `Sandi sementara untuk <b>${esc(body.name)}</b> (${esc(body.email)}):`, password: j.tempPassword }; S.overlay = 'uresult'; }
+            else { S.overlay = null; toast(`Akun ${body.email} dibuat`); }
+          } else {
+            if (S.um.list.some((u) => u.email.toLowerCase() === body.email.toLowerCase())) throw new Error('Email sudah dipakai akun lain.');
+            S.um.list.push(Object.assign({ id: 'demo' + Date.now(), active: true, lastLogin: null, mustChange: must }, body));
+            S.overlay = null; toast('Mode demo: akun ditambahkan di browser ini');
+          }
+        } else {
+          const active = $('#uf-active').checked;
+          if (AUTH) { const j = await api('api/users.php', Object.assign({ action: 'update', id: e.id, active }, body)); Object.assign(S.um, { list: j.users, log: null }); }
+          else Object.assign(e, body, { active });
+          S.overlay = null; toast('Perubahan akun disimpan');
+        }
+        render(true);
+      })().catch((x) => fail(x.message));
+    }
     if (f === 'pwd') {
       const cur = $('#pw-cur').value, nw = $('#pw-new').value, rep = $('#pw-rep').value, err = $('#pw-err'), go = $('#pw-go');
       const fail = (m) => { err.textContent = m; err.hidden = false; };
       if (nw !== rep) { fail('Ulangan kata sandi baru tidak sama.'); return; }
       if (!AUTH) { toast('Mode demo: kata sandi tidak disimpan'); S.overlay = null; renderOverlay(); return; }
       go.disabled = true; go.textContent = 'Menyimpan…';
-      api('api/password.php', { current: cur, next: nw }).then(() => { S.overlay = null; renderOverlay(); toast('Kata sandi berhasil diganti'); })
+      api('api/password.php', { current: cur, next: nw }).then(() => { S.overlay = null; if (S.forcePwd) { S.forcePwd = false; AUTH.user.mustChange = false; } renderOverlay(); toast('Kata sandi berhasil diganti'); })
         .catch((x) => { fail(x.message); go.disabled = false; go.textContent = 'Simpan kata sandi'; });
     }
   });
@@ -1100,7 +1245,7 @@
     try {
       const r = await fetch('api/session.php', { credentials: 'same-origin', cache: 'no-store' });
       const j = await r.json();
-      if (j && j.authenticated) { AUTH = { user: j.user, csrf: j.csrf, idle: j.idleLimit }; S.role = j.user.role; startIdleWatch(); }
+      if (j && j.authenticated) { AUTH = { user: j.user, csrf: j.csrf, idle: j.idleLimit }; S.role = j.user.role; startIdleWatch(); if (j.user.mustChange) { S.forcePwd = true; S.overlay = 'pwd'; } }
       else if (j && j.authenticated === false) { location.replace('./'); return; }
     } catch (e) { AUTH = null; /* tanpa server PHP (pratinjau / berkas lokal): mode demo */ }
     render();
