@@ -184,7 +184,7 @@
 
   function route() {
     const h = (location.hash || '').slice(1);
-    if (h.startsWith('risk-')) return { id: 'risk', arg: h.slice(5) };
+    if (/^risk-R-\d+$/.test(h)) return { id: 'risk', arg: h.slice(5) };
     return { id: h || 'exec', arg: null };
   }
 
@@ -342,7 +342,7 @@
   V['risk-dash'] = function () {
     const P = D.PROFILE, M = D.MITIG;
     const segs = [['done', 'Selesai', M.done, 'var(--lv-l)'], ['run', 'Berjalan', M.run, 'var(--accent)'], ['todo', 'Belum mulai', M.todo, 'var(--muted)'], ['late', 'Terlambat', M.late, 'var(--lv-vh)'], ['cancel', 'Dibatalkan', M.cancel, 'var(--line)']];
-    const emerging = S.risks.filter((r) => r.trend === 'up');
+    const upAll = S.risks.filter((r) => r.trend === 'up'), emerging = upAll.slice().sort((a, b) => sc(b.res) - sc(a.res)).slice(0, 8);
     return `
     ${ph('ISO 31000 · 6.6 Pemantauan & Reviu', 'Risk Dashboard', 'Pemantauan operasional untuk Risk Manager dan Risk Officer: pergerakan risiko, status mitigasi, dan distribusi per unit kerja.', `<select class="sel" aria-label="Unit kerja"><option>Semua unit kerja</option>${D.UNITS.map((u) => `<option>${u}</option>`).join('')}</select>`)}
     <div class="kpis">
@@ -361,7 +361,7 @@
         <a class="btn sm" href="#treatment" style="margin-top:10px">Kelola action plan →</a>`, { sub: `${M.total} action plan` })}</div>
       <div class="s-6">${card('Risiko per unit kerja', barList(D.BY_UNIT), { sub: 'total risiko · hover untuk level' })}</div>
       <div class="s-6">${card('Risiko per proses bisnis', barList(D.BY_PROCESS), { sub: `${D.BY_PROCESS.length} proses teratas` })}</div>
-      <div class="s-6">${card('Top emerging risks', `<div class="rlist">${emerging.map(riskRow).join('')}</div>`, { flush: true, sub: 'tren meningkat' })}</div>
+      <div class="s-6">${card('Top emerging risks', `<div class="rlist">${emerging.map(riskRow).join('')}</div>`, { flush: true, sub: `${emerging.length} dari ${upAll.length} risiko yang meningkat`, extra: '<a class="btn sm ghost" href="#review">Risk review →</a>' })}</div>
       <div class="s-6">${card('Peringatan terbaru', feed(WARNINGS.slice(0, 5)), { flush: true, extra: '<a class="btn sm ghost" href="#kri">Semua →</a>' })}</div>
       <div class="s-12">${card('Aktivitas terbaru', auditTable(S.audit.slice(0, 8)), { flush: true, extra: allowed('audit') ? '<a class="btn sm ghost" href="#audit">Audit trail →</a>' : '' })}</div>
     </div>`;
