@@ -3,7 +3,7 @@ import { ref } from 'vue';
 import { Head, useForm, usePage } from '@inertiajs/vue3';
 import Icon from '../../Components/Icon.vue';
 const props = defineProps({ status: String });
-const form = useForm({ email: '', password: '', remember: false });
+const form = useForm({ email: '', password: '' });
 const show = ref(false);
 const submit = () => form.post('/login', { onFinish: () => form.reset('password') });
 </script>
@@ -28,7 +28,7 @@ const submit = () => form.post('/login', { onFinish: () => form.reset('password'
         <div class="field"><label for="pass">Kata sandi</label>
           <div class="row" style="gap:6px"><input id="pass" v-model="form.password" class="inp" :type="show ? 'text' : 'password'" autocomplete="current-password" required style="flex:1"><button type="button" class="icon-btn c-cyan" :aria-label="show ? 'Sembunyikan' : 'Tampilkan'" @click="show = !show"><Icon name="search" /></button></div>
         </div>
-        <label class="row" style="gap:8px;margin-bottom:16px;font-size:13px"><input v-model="form.remember" type="checkbox" style="width:18px;height:18px;accent-color:var(--accent)"><span>Ingat saya di perangkat ini</span></label>
+        <div style="height:6px"></div>
         <button class="btn full c-blue" type="submit" :disabled="form.processing">{{ form.processing ? 'Memeriksa…' : 'Masuk' }}</button>
         <p class="foot">Akses hanya untuk pengguna terdaftar. Lupa kata sandi? Hubungi administrator ManRisk di organisasi Anda. Setiap percobaan masuk dicatat.</p>
       </form>

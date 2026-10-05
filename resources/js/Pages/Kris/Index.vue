@@ -29,6 +29,7 @@ const chart = (k) => ({ xAxis: { type: 'category', data: k.series.map((s) => fmt
   <Head title="KRI & early warning" />
   <PageHead kicker="Pemantauan" title="Key Risk Indicator & early warning" sub="Indikator kuantitatif dengan ambang waspada/kritis. Nilai yang melewati ambang memicu peringatan dini otomatis ke pemilik risiko dan Risk Manager.">
     <button v-if="can.write" type="button" class="btn c-green" @click="item = null; modal = true"><Icon name="plus" />KRI baru</button>
+    <Link v-if="can.write" href="/import/kri" class="btn c-teal"><Icon name="upload" />Impor nilai (Excel)</Link>
   </PageHead>
   <div class="kpis"><Kpi label="Total KRI" :value="stats.total" /><Kpi label="Kritis" :value="stats.critical" level="vh" sub="melewati ambang kritis" /><Kpi label="Waspada" :value="stats.warning" level="m" sub="zona peringatan" /><Kpi label="Normal" :value="stats.normal" level="l" /></div>
   <div class="kri-grid">

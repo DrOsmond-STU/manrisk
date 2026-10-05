@@ -12,13 +12,15 @@ class AiController extends Controller
 {
     public function index(Request $request, AiService $ai)
     {
+        abort_if($request->user()->role === 'auditor', 403, 'Auditor tidak menggunakan AI Assistant (§3.2).');
         return Inertia::render('Ai/Index', ['enabled' => $ai->available(), 'provider' => $ai->hasProvider() ? config('manrisk.ai.model') : 'mode lokal (tanpa kunci API)', 'remaining' => $ai->remaining($request->user()), 'risks' => $this->riskOptions()]);
     }
 
     public function run(Request $request, AiService $ai)
     {
+        abort_if($request->user()->role === 'auditor', 403);
         $data = $request->validate([
-            'feature' => ['required', Rule::in(['suggest_risk', 'suggest_controls', 'suggest_treatment', 'explain_score', 'summarize', 'draft_report'])],
+            'feature' => ['required', Rule::in(['suggest_risk', 'suggest_controls', 'suggest_treatment', 'explain_score', 'summarize', 'draft_report', 'identify', 'statement'])],
             'risk_id' => ['nullable', 'integer'],
             'context' => ['nullable', 'string', 'max:3000'],
         ]);
@@ -36,6 +38,10 @@ class AiController extends Controller
                 'escalate' => $risks->whereIn('evaluation', ['escalate', 'critical'])->count(), 'plan_done' => $plans->where('progress', 100)->count(), 'plan_total' => $plans->count(),
                 'incidents_ytd' => \App\Models\Incident::whereYear('occurred_at', now()->year)->count(), 'loss_ytd' => (float) \App\Models\Incident::whereYear('occurred_at', now()->year)->sum('loss_amount')];
             $input['top'] = $risks->sortByDesc('residual_score')->take(10)->values()->map(fn ($r) => $r->only('code', 'name', 'residual_score', 'residual_level', 'evaluation'))->all();
+        }
+        if (in_array($data['feature'], AiService::STRUCTURED, true)) {
+            $input['categories'] = \App\Models\RiskCategory::where('active', true)->orderBy('sort')->pluck('name')->all();
+            return response()->json($ai->structured($request->user(), $data['feature'], $input));
         }
         return response()->json($ai->run($request->user(), $data['feature'], $input));
     }

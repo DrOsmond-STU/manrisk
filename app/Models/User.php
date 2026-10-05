@@ -31,6 +31,8 @@ class User extends Authenticatable
 
     protected $hidden = ['password', 'remember_token'];
 
+    protected $attributes = ['active' => true, 'must_change_password' => false, 'role' => 'risk_officer'];
+
     protected $auditExclude = ['last_login_at', 'last_login_ip', 'preferences', 'password_changed_at'];
 
     protected function casts(): array

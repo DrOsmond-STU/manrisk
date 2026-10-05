@@ -31,7 +31,55 @@ class AiService
         return max(0, (int) config('manrisk.ai.daily_limit') - $used);
     }
 
-    /** Fitur: suggest_risk | suggest_controls | suggest_treatment | summarize | explain_score | draft_report */
+    public const STRUCTURED = ['identify', 'statement'];
+
+    /** Paragraf ringkasan dashboard (F-DSH-09), di-cache 15 menit; tidak memotong kuota pengguna. */
+    public function dashboardSummary(array $s, array $top, string $cacheKey): string
+    {
+        return \Illuminate\Support\Facades\Cache::remember('ai-dash:' . $cacheKey . ':' . md5(json_encode([$s, $top])), now()->addMinutes(15), function () use ($s, $top) {
+            $local = $this->localSummary($s, $top);
+            if (!$this->available() || !$this->hasProvider()) {
+                return $local;
+            }
+            try {
+                [$text] = $this->callAnthropic($this->prompt('summarize', ['summary' => $s, 'top' => $top]) . "\n\nBalas dalam SATU paragraf (maks. 90 kata), sebut ID risiko.");
+                return trim($text) ?: $local;
+            } catch (\Throwable $e) {
+                report($e);
+                return $local;
+            }
+        });
+    }
+
+    private function localSummary(array $s, array $top): string
+    {
+        $t = collect($top)->take(3)->map(fn ($r) => "{$r['code']} ({$r['residual_score']})")->implode(', ');
+        $dir = ($s['up'] ?? 0) > ($s['down'] ?? 0) ? 'cenderung meningkat' : (($s['down'] ?? 0) > ($s['up'] ?? 0) ? 'cenderung menurun' : 'relatif stabil');
+        return "Terdapat {$s['total']} risiko aktif dengan {$s['high']} berlevel tinggi/sangat tinggi; profil risiko {$dir} dibanding periode lalu ({$s['up']} naik, {$s['down']} turun). "
+            . ($t ? "Risiko prioritas: {$t}. " : '')
+            . "Realisasi mitigasi rata-rata {$s['realization']}% dengan {$s['overdue']} action plan terlambat; {$s['kri_breach']} KRI melewati ambang. "
+            . (($s['escalate'] ?? 0) > 0 ? "Sebanyak {$s['escalate']} risiko memerlukan keputusan manajemen." : 'Tidak ada risiko yang melewati ambang eskalasi.');
+    }
+
+    /**
+     * Keluaran terstruktur untuk mengisi formulir (spesifikasi §14.2).
+     * identify → {candidates:[{name,category,source_kind,cause,event,impact,likelihood,impact_score}]}
+     * statement → {cause,event,impact,name}
+     */
+    public function structured(User $user, string $feature, array $input): array
+    {
+        $res = $this->run($user, $feature, $input);
+        $json = null;
+        if (preg_match('/\{.*\}/s', $res['text'], $m)) {
+            $json = json_decode($m[0], true);
+        }
+        if (!is_array($json)) {
+            $json = json_decode($this->heuristic($feature, $input), true) ?: [];
+        }
+        return ['data' => $json, 'model' => $res['model'], 'remaining' => $res['remaining']];
+    }
+
+    /** Fitur: suggest_risk | suggest_controls | suggest_treatment | summarize | explain_score | draft_report | identify | statement */
     public function run(User $user, string $feature, array $input): array
     {
         if (!$this->available()) {
@@ -70,6 +118,8 @@ class AiService
             'suggest_treatment' => 'Rekomendasikan opsi treatment (hindari/kurangi/bagikan/terima) dan 3 action plan konkret dengan PIC generik, tenggat, dan perkiraan penurunan skor.',
             'explain_score' => 'Jelaskan skor inheren/residual/target risiko berikut, status evaluasi terhadap appetite/tolerance, dan apa artinya bagi manajemen dalam bahasa sederhana.',
             'summarize' => 'Buat ringkasan eksekutif profil risiko berikut dalam 5 poin, sebutkan risiko tertinggi, tren, dan rekomendasi prioritas.',
+            'identify' => 'Identifikasi 5 risiko dari konteks/proses berikut. Balas HANYA JSON: {"candidates":[{"name":"","category":"","source_kind":"people|process|technology|infrastructure|regulation|financial|third_party","cause":"","event":"","impact":"","likelihood":1-5,"impact_score":1-5}]}. Kategori pilih dari: ' . implode(', ', $input['categories'] ?? []) . '.',
+            'statement' => 'Ubah catatan bebas berikut menjadi pernyataan risiko. Balas HANYA JSON: {"name":"","cause":"","event":"","impact":""}.',
             'draft_report' => 'Susun naskah laporan manajemen risiko (pendahuluan, profil risiko, risiko utama, status mitigasi, KRI & insiden, rekomendasi) berdasarkan data berikut. Gunakan heading markdown.',
             default => 'Bantu analisis manajemen risiko berikut.',
         };
@@ -91,6 +141,10 @@ class AiService
     {
         $treat = config('manrisk.treatments');
         switch ($feature) {
+            case 'identify':
+                return json_encode(['candidates' => $this->heuristicCandidates((string) ($in['context'] ?? ''), $in['categories'] ?? [])], JSON_UNESCAPED_UNICODE);
+            case 'statement':
+                return json_encode($this->heuristicStatement((string) ($in['context'] ?? '')), JSON_UNESCAPED_UNICODE);
             case 'explain_score':
                 $r = $in['risk'] ?? [];
                 $ev = \App\Support\Scoring::EVALUATIONS[$r['evaluation'] ?? 'monitor'] ?? '';
@@ -113,5 +167,49 @@ class AiService
                 return $head . "- Total {$s['total']} risiko aktif; {$s['high']} berlevel tinggi/sangat tinggi; rata-rata skor residual {$s['avg']}.\n- {$s['escalate']} risiko melewati ambang eskalasi dan memerlukan perhatian manajemen.\n- Penyelesaian action plan: {$s['plan_done']}/{$s['plan_total']}.\n- Insiden tahun berjalan: {$s['incidents_ytd']} dengan kerugian Rp " . number_format((float) ($s['loss_ytd'] ?? 0), 0, ',', '.') . ".\n\n**Risiko utama**\n$top\n\n**Rekomendasi:** prioritaskan mitigasi risiko sangat tinggi, tinjau kontrol yang lemah, dan tindak lanjuti KRI yang melampaui ambang.";
         }
         return 'Tidak ada saran.';
+    }
+
+    /** Kandidat risiko berbasis aturan (mode tanpa penyedia AI). */
+    private function heuristicCandidates(string $ctx, array $categories): array
+    {
+        $topic = trim(mb_substr(preg_replace('/\s+/', ' ', $ctx), 0, 80)) ?: 'proses bisnis';
+        $pick = function (array $prefs) use ($categories) {
+            foreach ($prefs as $p) {
+                foreach ($categories as $c) {
+                    if (mb_stripos($c, $p) !== false) {
+                        return $c;
+                    }
+                }
+            }
+            return $categories[0] ?? 'Operasional';
+        };
+        return [
+            ['name' => "Keterlambatan pelaksanaan {$topic}", 'category' => $pick(['Operasional']), 'source_kind' => 'people', 'cause' => "keterbatasan SDM dan kompetensi pada {$topic}", 'event' => "pelaksanaan {$topic} terlambat dari jadwal", 'impact' => 'target kinerja dan layanan tidak tercapai', 'likelihood' => 3, 'impact_score' => 3],
+            ['name' => "Gangguan sistem pendukung {$topic}", 'category' => $pick(['Teknologi', 'TI', 'Operasional']), 'source_kind' => 'technology', 'cause' => "ketergantungan pada aplikasi tunggal tanpa cadangan untuk {$topic}", 'event' => 'sistem pendukung tidak tersedia', 'impact' => 'proses terhenti dan data tidak dapat diakses', 'likelihood' => 2, 'impact_score' => 4],
+            ['name' => "Ketidaksesuaian {$topic} dengan regulasi", 'category' => $pick(['Kepatuhan', 'Hukum']), 'source_kind' => 'regulation', 'cause' => 'perubahan regulasi belum diikuti pembaruan prosedur', 'event' => "{$topic} tidak sesuai ketentuan", 'impact' => 'temuan audit atau sanksi', 'likelihood' => 2, 'impact_score' => 3],
+            ['name' => "Penyimpangan anggaran {$topic}", 'category' => $pick(['Keuangan']), 'source_kind' => 'financial', 'cause' => 'pengendalian realisasi anggaran lemah', 'event' => 'realisasi anggaran menyimpang dari rencana', 'impact' => 'kerugian finansial dan temuan pemeriksa', 'likelihood' => 3, 'impact_score' => 3],
+            ['name' => "Kegagalan pihak ketiga pada {$topic}", 'category' => $pick(['Operasional', 'Strategis']), 'source_kind' => 'third_party', 'cause' => 'ketergantungan pada satu penyedia tanpa SLA memadai', 'event' => 'penyedia gagal memenuhi kewajiban', 'impact' => 'layanan tertunda dan biaya tambahan', 'likelihood' => 2, 'impact_score' => 3],
+        ];
+    }
+
+    /** Pemecahan catatan bebas menjadi penyebab → peristiwa → dampak (mode tanpa penyedia AI). */
+    private function heuristicStatement(string $text): array
+    {
+        $t = trim(preg_replace('/\s+/', ' ', $text));
+        $cause = $event = $impact = '';
+        if (preg_match('/karena\s+(.+?)(?:,|\s+(?:sehingga|maka|mengakibatkan|menyebabkan|dapat terjadi|terjadi))/iu', $t, $m)) {
+            $cause = $m[1];
+        }
+        if (preg_match('/(?:dapat terjadi|mungkin terjadi|terjadi)\s+(.+?)(?:,|\s+(?:sehingga|yang berdampak|mengakibatkan|menyebabkan)|$)/iu', $t, $m)) {
+            $event = $m[1];
+        }
+        if (preg_match('/(?:sehingga|berdampak pada|mengakibatkan|menyebabkan)\s+(.+)$/iu', $t, $m)) {
+            $impact = rtrim($m[1], '. ');
+        }
+        $parts = preg_split('/[.;]\s*/', $t);
+        $cause = $cause ?: ($parts[0] ?? $t);
+        $event = $event ?: ($parts[1] ?? $parts[0] ?? $t);
+        $impact = $impact ?: ($parts[2] ?? 'terganggunya pencapaian sasaran');
+        return ['name' => ucfirst(mb_substr($event, 0, 120)), 'cause' => $cause, 'event' => $event, 'impact' => $impact];
     }
 }

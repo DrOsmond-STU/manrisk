@@ -42,6 +42,7 @@ class PasswordController extends Controller
         PasswordPolicy::apply($user, $data['password']);
         AuthLog::write('password_changed', $user->email, $user);
         $request->session()->regenerate();
+        \App\Support\SessionManager::revokeAll($user, $request->session()->getId());
         return redirect()->route('dashboard')->with('success', 'Kata sandi berhasil diganti.');
     }
 }

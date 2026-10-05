@@ -30,6 +30,8 @@ class ActionPlan extends Model
         'expected_dl',
         'expected_di',
         'completed_at',
+        'verified_at',
+        'verified_by',
         'cancelled_at',
         'cancel_reason',
         'created_by',
@@ -41,20 +43,21 @@ class ActionPlan extends Model
         'due_date' => 'date',
         'completed_at' => 'datetime',
         'cancelled_at' => 'datetime',
+        'verified_at' => 'datetime',
     ];
-    /** Status dihitung: cancelled | done | overdue | todo | running */
+    /** Status dihitung: cancelled | done | verify (menunggu verifikasi) | overdue | todo | running */
     public function computedStatus(): string
     {
         if ($this->cancelled_at) {
             return 'cancelled';
         }
         if ($this->progress >= 100) {
-            return 'done';
+            return (config('manrisk.plan_completion_verification') && !$this->verified_at) ? 'verify' : 'done';
         }
-        if ($this->due_date && $this->due_date->isPast()) {
+        if ($this->due_date && $this->due_date->lt(now()->startOfDay())) {
             return 'overdue';
         }
-        return $this->progress === 0 ? 'todo' : 'running';
+        return (int) $this->progress === 0 ? 'todo' : 'running';
     }
 
 
@@ -81,5 +84,10 @@ class ActionPlan extends Model
     public function documents(): MorphMany
     {
         return $this->morphMany(Document::class, 'subject');
+    }
+
+    public function verifier(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'verified_by');
     }
 }

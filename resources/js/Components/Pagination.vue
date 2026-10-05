@@ -7,7 +7,7 @@ defineProps({ data: Object });
     <span class="hint">{{ data.from }}–{{ data.to }} dari {{ data.total }}</span>
     <div class="row">
       <template v-for="(l, i) in data.links" :key="i">
-        <Link v-if="l.url" :href="l.url" class="btn sm" :class="l.active ? 'c-blue' : 'ghost c-indigo'" preserve-scroll v-html="l.label.replace('&laquo; Previous', '‹').replace('Next &raquo;', '›')" />
+        <Link v-if="l.url" :href="l.url" class="btn sm" :class="l.active ? 'c-blue' : 'ghost c-indigo'" preserve-scroll v-html="l.label.replace('&laquo; Sebelumnya', '‹').replace('Berikutnya &raquo;', '›').replace('&laquo; Previous', '‹').replace('Next &raquo;', '›')" />
       </template>
     </div>
   </div>

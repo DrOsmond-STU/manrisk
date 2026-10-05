@@ -14,6 +14,9 @@ return [
     'session_idle_minutes' => (int) env('MR_SESSION_IDLE_MINUTES', 30),
     'session_absolute_hours' => (int) env('MR_SESSION_ABSOLUTE_HOURS', 8),
 
+    // Penyelesaian action plan wajib bukti & verifikasi Risk Owner (F-TRT-07)
+    'plan_completion_verification' => (bool) env('MR_PLAN_VERIFICATION', true),
+
     // Alur persetujuan
     'approval_sla_days' => (int) env('MR_APPROVAL_SLA_DAYS', 3),
 
@@ -27,6 +30,8 @@ return [
     'upload_mimes' => ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'image/jpeg', 'image/png'],
     'upload_extensions' => ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'jpg', 'jpeg', 'png'],
+    // Pemindaian antivirus opsional (spesifikasi F-DOC-05): path ke clamscan/clamdscan; kosong = nonaktif
+    'clamav_path' => env('MR_CLAMAV_PATH'),
 
     // AI (spesifikasi §14)
     'ai' => [

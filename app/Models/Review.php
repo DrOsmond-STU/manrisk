@@ -23,6 +23,7 @@ class Review extends Model
         'decision',
         'reviewer_id',
         'signed_at',
+        'signed_ip',
     ];
 
     protected $casts = [

@@ -5,29 +5,41 @@ import PageHead from '../../Components/PageHead.vue';
 import Pill from '../../Components/Pill.vue';
 import Pagination from '../../Components/Pagination.vue';
 import Field from '../../Components/Field.vue';
-const props = defineProps({ risks: Object, filters: Object, units: Array, categories: Array, owners: Array, can: Object });
+const props = defineProps({ risks: Object, filters: Object, units: Array, categories: Array, owners: Array, objectives: Array, can: Object });
 const L = usePage().props.labels;
-const f = reactive({ q: props.filters.q || '', unit_id: props.filters.unit_id || '', category_id: props.filters.category_id || '', level: props.filters.level || '', status: props.filters.status || '', evaluation: props.filters.evaluation || '', owner_id: props.filters.owner_id || '', sort: props.filters.sort || 'residual_score', dir: props.filters.dir || 'desc' });
+const f = reactive({ q: props.filters.q || '', unit_id: props.filters.unit_id || '', category_id: props.filters.category_id || '', level: props.filters.level || '', status: props.filters.status || '', evaluation: props.filters.evaluation || '', owner_id: props.filters.owner_id || '', objective_id: props.filters.objective_id || '', process_id: props.filters.process_id || '', trend: props.filters.trend || '', mode: props.filters.mode || '', l: props.filters.l || '', i: props.filters.i || '', no_controls: props.filters.no_controls || '', period: props.filters.period || '', sort: props.filters.sort || 'residual_score', dir: props.filters.dir || 'desc' });
+const active = () => Object.fromEntries(Object.entries(f).filter(([, v]) => v !== '' && v !== null));
+const exportUrl = (fmt) => `/risks/export?${new URLSearchParams({ ...active(), format: fmt })}`;
+const modeLabel = { inherent: 'inheren', residual: 'residual', target: 'target' };
 let t;
 const apply = () => router.get('/risks', Object.fromEntries(Object.entries(f).filter(([, v]) => v !== '' && v !== null)), { preserveState: true, replace: true });
 watch(f, () => { clearTimeout(t); t = setTimeout(apply, 350); });
 const sortBy = (c) => { if (f.sort === c) f.dir = f.dir === 'asc' ? 'desc' : 'asc'; else { f.sort = c; f.dir = c === 'name' || c === 'code' ? 'asc' : 'desc'; } };
-const reset = () => Object.assign(f, { q: '', unit_id: '', category_id: '', level: '', status: '', evaluation: '', owner_id: '' });
+const reset = () => Object.assign(f, { q: '', unit_id: '', category_id: '', level: '', status: '', evaluation: '', owner_id: '', objective_id: '', process_id: '', trend: '', mode: '', l: '', i: '', no_controls: '', period: '' });
 </script>
 <template>
   <Head title="Risk Register" />
   <PageHead kicker="Manajemen Risiko" title="Risk Register" :sub="`${risks.total} risiko terdaftar · identifikasi, analisis, evaluasi, dan treatment dalam satu register.`">
     <Link v-if="can.create" href="/risks/create" class="btn c-green"><Icon name="plus" />Identifikasi risiko baru</Link>
     <Link href="/risks/matrix" class="btn c-violet"><Icon name="target" />Matriks</Link>
+    <a :href="exportUrl('xlsx')" class="btn c-green"><Icon name="file" />Excel</a>
+    <a :href="exportUrl('pdf')" class="btn c-red"><Icon name="file" />PDF</a>
+    <Link v-if="can.import" href="/import/risk" class="btn c-teal"><Icon name="upload" />Impor Excel</Link>
   </PageHead>
+  <div v-if="f.l && f.i || f.no_controls || f.trend || f.process_id || f.period" class="row" style="gap:6px">
+    <span v-if="f.l && f.i" class="pill run">Sel {{ modeLabel[f.mode || 'residual'] }} L{{ f.l }} × I{{ f.i }}</span>
+    <span v-if="f.no_controls" class="pill warn">Risiko tanpa kontrol</span><span v-if="f.trend" class="pill run">Tren: {{ f.trend }}</span><span v-if="f.process_id" class="pill run">Proses #{{ f.process_id }}</span><span v-if="f.period" class="pill run">Tahun {{ f.period }}</span>
+    <button type="button" class="btn sm ghost c-indigo" @click="Object.assign(f, { mode: '', l: '', i: '', no_controls: '', trend: '', process_id: '', period: '' })">Hapus filter khusus</button>
+  </div>
   <div class="card"><div class="card-b filters">
     <Field v-model="f.q" placeholder="Cari kode / nama / peristiwa" label="Cari" style="flex:1;min-width:200px" />
     <Field v-model="f.unit_id" type="select" label="Unit" :options="units" empty="Semua unit" />
     <Field v-model="f.category_id" type="select" label="Kategori" :options="categories" empty="Semua" />
     <Field v-model="f.level" type="select" label="Level" :options="L.levels" empty="Semua" />
     <Field v-model="f.evaluation" type="select" label="Evaluasi" :options="L.evaluations" empty="Semua" />
-    <Field v-model="f.status" type="select" label="Status" :options="L.risk_statuses" empty="Semua" />
+    <Field v-model="f.status" type="select" label="Status" :options="{ active: 'Aktif (belum ditutup)', ...L.risk_statuses }" empty="Semua" />
     <Field v-model="f.owner_id" type="select" label="Pemilik" :options="owners" empty="Semua" />
+    <Field v-model="f.objective_id" type="select" label="Sasaran" :options="objectives.map((o) => ({ id: o.id, name: o.code }))" empty="Semua" />
     <button type="button" class="btn ghost c-indigo" @click="reset">Reset</button>
   </div></div>
   <div class="card"><div class="card-b flush tbl-wrap"><table class="tbl">

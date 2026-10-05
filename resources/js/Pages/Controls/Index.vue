@@ -1,6 +1,6 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue';
-import { Head, router, usePage } from '@inertiajs/vue3';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import PageHead from '../../Components/PageHead.vue';
 import CrudModal from '../../Components/CrudModal.vue';
 import ConfirmButton from '../../Components/ConfirmButton.vue';
@@ -32,7 +32,7 @@ const effTone = (v) => (!v ? '' : v >= 3 ? 'ok' : v === 2 ? 'warn' : 'bad');
   <PageHead kicker="Penanganan & Kontrol" title="Manajemen kontrol & efektivitas" sub="Daftar kontrol, kaitannya dengan risiko, dan hasil pengujian efektivitas desain/operasi (1 Tidak Efektif – 4 Sangat Efektif).">
     <button v-if="can.write" type="button" class="btn c-green" @click="open(null)"><Icon name="plus" />Kontrol baru</button>
   </PageHead>
-  <div class="kpis"><Kpi label="Kontrol aktif" :value="stats.total" /><Kpi label="Efektif (≥ 3)" :value="stats.effective" level="l" /><Kpi label="Lemah (≤ 2)" :value="stats.weak" level="vh" /><Kpi label="Belum diuji" :value="stats.untested" level="m" /><Kpi label="Jatuh tempo pengujian" :value="stats.due" level="h" /></div>
+  <div class="kpis"><Kpi label="Kontrol aktif" :value="stats.total" /><Kpi label="Efektif (≥ 3)" :value="stats.effective" level="l" /><Kpi label="Lemah (≤ 2)" :value="stats.weak" level="vh" /><Kpi label="Belum diuji" :value="stats.untested" level="m" /><Kpi label="Jatuh tempo pengujian" :value="stats.due" level="h" /><Link href="/risks?no_controls=1" class="kpi plain" style="text-decoration:none"><div class="k-l">Risiko tanpa kontrol</div><div class="k-v" :style="stats.risks_without_controls ? 'color:var(--bad-ink)' : ''">{{ stats.risks_without_controls }}</div><div class="k-s">kesenjangan pengendalian →</div></Link></div>
   <div class="s-grid">
     <div class="card" style="grid-column:span 9"><div class="card-b filters"><Field v-model="f.q" label="Cari" placeholder="kode / nama" style="flex:1" /><Field v-model="f.type" type="select" label="Tipe" :options="{ preventive: 'Preventif', detective: 'Detektif', corrective: 'Korektif' }" empty="Semua" /><Field v-model="f.eff" type="select" label="Efektivitas" :options="{ weak: 'Lemah saja' }" empty="Semua" /></div>
       <div class="card-b flush tbl-wrap"><table class="tbl"><thead><tr><th>Kode</th><th>Kontrol</th><th>Tipe</th><th>Pemilik</th><th>Desain</th><th>Operasi</th><th>Uji berikut</th><th>Risiko</th><th></th></tr></thead><tbody>
