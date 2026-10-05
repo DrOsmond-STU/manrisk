@@ -16,7 +16,8 @@ class ControlController extends Controller
     {
         $this->authorize('viewAny', Control::class);
         $f = $request->validate(['q' => ['nullable', 'string', 'max:100'], 'type' => ['nullable', Rule::in(['preventive', 'detective', 'corrective'])], 'eff' => ['nullable', Rule::in(['weak', 'ok'])]]);
-        $q = Control::with(['owner:id,name', 'unit:id,name', 'risks:id,code,name,residual_level'])->withCount('assessments');
+        $ids = $request->user()->accessibleUnitIds();
+        $q = Control::with(['owner:id,name', 'unit:id,name', 'risks' => fn ($r) => $r->select('risks.id', 'code', 'name', 'residual_level', 'unit_id')->when($ids !== null, fn ($x) => $x->whereIn('unit_id', $ids))])->withCount('assessments');
         if (!empty($f['q'])) {
             $q->where(fn ($w) => $w->where('code', 'like', "%{$f['q']}%")->orWhere('name', 'like', "%{$f['q']}%"));
         }
@@ -49,7 +50,8 @@ class ControlController extends Controller
     public function show(Control $control)
     {
         $this->authorize('view', $control);
-        $control->load(['owner:id,name', 'unit:id,name', 'risks:id,code,name,residual_score,residual_level', 'assessments' => fn ($q) => $q->with('tester:id,name')->orderByDesc('tested_at'), 'documents.uploader:id,name']);
+        $ids = auth()->user()->accessibleUnitIds();
+        $control->load(['owner:id,name', 'unit:id,name', 'risks' => fn ($r) => $r->select('risks.id', 'code', 'name', 'residual_score', 'residual_level', 'unit_id')->when($ids !== null, fn ($x) => $x->whereIn('unit_id', $ids)), 'assessments' => fn ($q) => $q->with('tester:id,name')->orderByDesc('tested_at'), 'documents.uploader:id,name']);
         return Inertia::render('Controls/Show', ['control' => $control->toArray() + ['overall' => $control->overallEffectiveness()], 'can' => ['write' => auth()->user()->can('update', $control)]]);
     }
 
@@ -122,7 +124,7 @@ class ControlController extends Controller
             'operating_eff' => ['nullable', 'integer', 'between:1,4'],
             'active' => ['nullable', 'boolean'],
             'risk_ids' => ['nullable', 'array'],
-            'risk_ids.*' => ['integer', Rule::exists('risks', 'id')->where('organization_id', $org)],
+            'risk_ids.*' => ['integer', Rule::exists('risks', 'id')->where('organization_id', $org)->where(fn ($q) => ($ids = $request->user()->accessibleUnitIds()) !== null ? $q->whereIn('unit_id', $ids) : $q)],
         ]);
     }
 }

@@ -16,7 +16,9 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->trustProxies(at: '*');
+        // Hanya proksi lokal/privat yang dipercaya; header X-Forwarded-* dari klien publik diabaikan
+        // agar IP tidak dapat dipalsukan untuk melewati pembatasan login.
+        $middleware->trustProxies(at: array_filter(array_map('trim', explode(',', (string) env('TRUSTED_PROXIES', '127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16')))));
         $middleware->web(append: [
             SecurityHeaders::class,
             HandleInertiaRequests::class,
@@ -35,6 +37,9 @@ return Application::configure(basePath: dirname(__DIR__))
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );
         $exceptions->respond(function (\Symfony\Component\HttpFoundation\Response $response, \Throwable $e, Request $request) {
+            if ($response->getStatusCode() === 403 && $request->user()) {
+                \App\Models\AuthLog::write('access_denied', $request->user()->email, $request->user(), mb_substr($request->method() . ' ' . $request->path(), 0, 200));
+            }
             if ($request->header('X-Inertia') && in_array($response->getStatusCode(), [403, 404, 419, 429, 500, 503], true)) {
                 if ($response->getStatusCode() === 419) {
                     return back()->with('error', 'Sesi kedaluwarsa, silakan coba lagi.');

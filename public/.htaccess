@@ -5,15 +5,25 @@
 
     RewriteEngine On
 
+    # Paksa HTTPS di produksi
+    RewriteCond %{HTTPS} !=on
+    RewriteCond %{HTTP:X-Forwarded-Proto} !https
+    RewriteCond %{HTTP_HOST} !^(127\.0\.0\.1|localhost)(:[0-9]+)?$
+    RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+    # Berkas tersembunyi (.env, .git, .htaccess, dll.) tidak pernah disajikan
+    RewriteRule (^|/)\.(?!well-known/) - [F,L]
+    # Hanya index.php yang boleh dieksekusi di folder publik
+    RewriteRule ^index\.php$ - [L]
+    RewriteRule \.(php[0-9]?|phtml|phar|inc|sh|sql|log|bak|ini)$ - [F,L,NC]
+
     # Handle Authorization Header
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
 
-    # Paksa HTTPS di produksi
-    RewriteCond %{HTTPS} !=on
-    RewriteCond %{HTTP:X-Forwarded-Proto} !https
-    RewriteCond %{HTTP_HOST} !^(127\.0\.0\.1|localhost)
-    RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+    # Handle X-XSRF-Token Header
+    RewriteCond %{HTTP:x-xsrf-token} .
+    RewriteRule .* - [E=HTTP_X_XSRF_TOKEN:%{HTTP:X-XSRF-Token}]
 
     # Redirect Trailing Slashes If Not A Folder...
     RewriteCond %{REQUEST_FILENAME} !-d
@@ -26,9 +36,14 @@
     RewriteRule ^ index.php [L]
 </IfModule>
 
-# Aset ber-hash boleh di-cache lama; HTML/JSON tidak (diatur aplikasi)
+Options -Indexes
+
 <IfModule mod_headers.c>
-    <FilesMatch "\.(js|css|woff2?)$">
+    Header always unset X-Powered-By
+    Header unset X-Powered-By
+    # Aset ber-hash boleh di-cache lama; HTML/JSON diatur aplikasi (no-store)
+    <FilesMatch "\.(js|css|woff2?|svg|png|ico)$">
         Header set Cache-Control "public, max-age=31536000, immutable"
+        Header set X-Content-Type-Options "nosniff"
     </FilesMatch>
 </IfModule>

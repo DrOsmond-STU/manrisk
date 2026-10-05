@@ -27,6 +27,8 @@ return [
     'upload_mimes' => ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'image/jpeg', 'image/png'],
     'upload_extensions' => ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'jpg', 'jpeg', 'png'],
+    // Pemindaian antivirus opsional (spesifikasi F-DOC-05): path ke clamscan/clamdscan; kosong = nonaktif
+    'clamav_path' => env('MR_CLAMAV_PATH'),
 
     // AI (spesifikasi §14)
     'ai' => [

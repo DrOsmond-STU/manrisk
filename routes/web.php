@@ -34,11 +34,12 @@ Route::middleware('guest')->group(function () {
 
 Route::middleware(['auth', 'session.policy'])->group(function () {
     Route::post('/logout', [LoginController::class, 'destroy'])->name('logout');
+    Route::post('/logout-others', [LoginController::class, 'destroyOthers'])->middleware('throttle:5,1')->name('logout.others');
     Route::get('/password', [PasswordController::class, 'edit'])->name('password.edit');
     Route::put('/password', [PasswordController::class, 'update'])->middleware('throttle:10,1')->name('password.update');
 });
 
-Route::middleware(['auth', 'session.policy', 'password.fresh'])->group(function () {
+Route::middleware(['auth', 'session.policy', 'password.fresh', 'throttle:app'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/dashboard/executive', [DashboardController::class, 'executive'])->middleware('role:super_admin,risk_admin,risk_manager,management,auditor')->name('dashboard.executive');
 

@@ -18,6 +18,9 @@ class ReviewController extends Controller
         $this->authorize('viewAny', Review::class);
         $f = $request->validate(['period' => ['nullable', 'string', 'max:20'], 'risk_id' => ['nullable', 'integer']]);
         $q = Review::with(['risk:id,code,name,unit_id,residual_score,residual_level', 'reviewer:id,name']);
+        if ($request->user()->isUnitScoped()) {
+            $q->whereIn('risk_id', \App\Support\UnitScope::riskIdsQuery($request->user()));
+        }
         if (!empty($f['period'])) {
             $q->where('period', $f['period']);
         }
@@ -27,10 +30,11 @@ class ReviewController extends Controller
         $reviews = $q->latest()->paginate(25)->withQueryString();
         $periodNow = now()->format('Y') . '-Q' . now()->quarter;
         $reviewedIds = Review::where('period', $periodNow)->pluck('risk_id');
+        $periods = Review::select('period')->distinct()->orderByDesc('period')->pluck('period');
         return Inertia::render('Reviews/Index', [
             'reviews' => $reviews,
             'filters' => $f,
-            'periods' => Review::select('period')->distinct()->orderByDesc('period')->pluck('period'),
+            'periods' => $periods,
             'period_now' => $periodNow,
             'due' => $this->scopeUnits(Risk::query())->where('status', '!=', 'closed')->whereNotIn('id', $reviewedIds)->with('unit:id,name')->orderByDesc('residual_score')->get(['id', 'code', 'name', 'unit_id', 'residual_score', 'residual_level', 'previous_score']),
             'risks' => $this->riskOptions(),

@@ -30,7 +30,7 @@ class DashboardController extends Controller
         $plans = $this->scopeUnits(ActionPlan::query())->whereNull('cancelled_at')->get();
         $overdue = $plans->filter(fn ($p) => $p->computedStatus() === 'overdue');
         $periods = collect(range(5, 0))->map(fn ($i) => now()->subMonths($i)->format('Y-m'));
-        $trend = RiskSnapshot::whereIn('period', $periods)->selectRaw('period, avg(residual_score) as avg_score, count(*) as n')->groupBy('period')->orderBy('period')->get()->keyBy('period');
+        $trend = RiskSnapshot::whereIn('period', $periods)->when($request->user()->isUnitScoped(), fn ($q) => $q->whereIn('risk_id', \App\Support\UnitScope::riskIdsQuery($request->user())))->selectRaw('period, avg(residual_score) as avg_score, count(*) as n')->groupBy('period')->orderBy('period')->get()->keyBy('period');
 
         return Inertia::render('Dashboard/Index', [
             'kpi' => [
@@ -39,20 +39,20 @@ class DashboardController extends Controller
                 'critical' => $risks->where('evaluation', 'critical')->count(),
                 'plans_total' => $plans->count(),
                 'plans_overdue' => $overdue->count(),
-                'kri_breach' => Kri::where('active', true)->whereIn('status', ['warning', 'critical'])->count(),
+                'kri_breach' => $this->scopedKris()->where('active', true)->whereIn('status', ['warning', 'critical'])->count(),
                 'incidents_open' => $this->scopeUnits(Incident::query())->where('status', '!=', 'closed')->count(),
-                'pending_approvals' => Approval::where('status', 'pending')->count(),
-                'controls_weak' => Control::where('active', true)->where(fn ($q) => $q->where('operating_eff', '<=', 2)->orWhere('design_eff', '<=', 2))->count(),
+                'pending_approvals' => \App\Support\UnitScope::morph(Approval::query(), $request->user(), false)->where('status', 'pending')->count(),
+                'controls_weak' => $this->scopedControls()->where('active', true)->where(fn ($q) => $q->where('operating_eff', '<=', 2)->orWhere('design_eff', '<=', 2))->count(),
             ],
             'by_level' => $byLevel,
             'heat' => $heat,
             'by_category' => RiskCategory::withCount(['risks' => fn ($q) => $this->scopeUnits($q)->where('status', '!=', 'closed')])->orderByDesc('risks_count')->get(['id', 'name'])->map(fn ($c) => ['name' => $c->name, 'n' => $c->risks_count]),
-            'by_unit' => OrgUnit::withCount(['risks' => fn ($q) => $q->where('status', '!=', 'closed')])->get(['id', 'name'])->filter(fn ($u) => $u->risks_count > 0)->sortByDesc('risks_count')->take(8)->values()->map(fn ($u) => ['name' => $u->name, 'n' => $u->risks_count]),
+            'by_unit' => OrgUnit::when($request->user()->accessibleUnitIds(), fn ($q, $ids) => $q->whereIn('id', $ids))->withCount(['risks' => fn ($q) => $q->where('status', '!=', 'closed')])->get(['id', 'name'])->filter(fn ($u) => $u->risks_count > 0)->sortByDesc('risks_count')->take(8)->values()->map(fn ($u) => ['name' => $u->name, 'n' => $u->risks_count]),
             'top_risks' => $risks->sortByDesc('residual_score')->take(8)->values()->map(fn ($r) => $r->only('id', 'code', 'name', 'residual_score', 'residual_level', 'evaluation', 'trend', 'status') + ['unit' => $r->unit?->name, 'owner' => $r->owner?->name]),
             'trend' => $periods->map(fn ($p) => ['period' => $p, 'avg' => round((float) ($trend[$p]->avg_score ?? 0), 1), 'n' => (int) ($trend[$p]->n ?? 0)]),
-            'alerts' => Alert::whereNull('handled_at')->latest()->limit(6)->get(['id', 'type', 'severity', 'title', 'link', 'created_at', 'read_at']),
+            'alerts' => \App\Support\UnitScope::morph(Alert::query(), $request->user())->whereNull('handled_at')->latest()->limit(6)->get(['id', 'type', 'severity', 'title', 'link', 'created_at', 'read_at']),
             'upcoming' => $plans->filter(fn ($p) => in_array($p->computedStatus(), ['overdue', 'running', 'todo']))->sortBy('due_date')->take(6)->values()->map(fn ($p) => $p->only('id', 'code', 'title', 'due_date', 'progress') + ['status' => $p->computedStatus()]),
-            'kris' => Kri::where('active', true)->with('risk:id,code')->orderByRaw("case status when 'critical' then 0 when 'warning' then 1 else 2 end")->limit(6)->get(),
+            'kris' => $this->scopedKris()->where('active', true)->with('risk:id,code')->orderByRaw("case status when 'critical' then 0 when 'warning' then 1 else 2 end")->limit(6)->get(),
         ]);
     }
 
@@ -94,5 +94,17 @@ class DashboardController extends Controller
             'units' => OrgUnit::withCount(['risks' => fn ($q) => $q->where('status', '!=', 'closed')])->with(['risks' => fn ($q) => $q->where('status', '!=', 'closed')->select('id', 'unit_id', 'residual_score', 'residual_level')])->get()
                 ->map(fn ($u) => ['name' => $u->name, 'n' => $u->risks_count, 'high' => $u->risks->whereIn('residual_level', ['high', 'very_high'])->count(), 'avg' => round((float) $u->risks->avg('residual_score'), 1)])->filter(fn ($u) => $u['n'] > 0)->values(),
         ]);
+    }
+
+    private function scopedKris()
+    {
+        $u = request()->user();
+        return Kri::query()->when($u->isUnitScoped(), fn ($q) => $q->whereIn('risk_id', \App\Support\UnitScope::riskIdsQuery($u)));
+    }
+
+    private function scopedControls()
+    {
+        $ids = request()->user()->accessibleUnitIds();
+        return Control::query()->when($ids !== null, fn ($q) => $q->where(fn ($w) => $w->whereNull('unit_id')->orWhereIn('unit_id', $ids)));
     }
 }

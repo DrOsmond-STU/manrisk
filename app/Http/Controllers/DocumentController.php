@@ -21,7 +21,7 @@ class DocumentController extends Controller
     {
         $this->authorize('viewAny', Document::class);
         $f = $request->validate(['q' => ['nullable', 'string', 'max:100'], 'type' => ['nullable', Rule::in(array_keys(config('manrisk.document_types')))], 'status' => ['nullable', Rule::in(['draft', 'review', 'approved', 'expired'])]]);
-        $q = Document::with(['uploader:id,name', 'subject']);
+        $q = \App\Support\UnitScope::morph(Document::with(['uploader:id,name', 'subject']), $request->user());
         if (!empty($f['q'])) {
             $q->where(fn ($w) => $w->where('title', 'like', "%{$f['q']}%")->orWhere('original_name', 'like', "%{$f['q']}%"));
         }
@@ -36,7 +36,7 @@ class DocumentController extends Controller
         ]);
         return Inertia::render('Documents/Index', [
             'documents' => $docs, 'filters' => $f,
-            'stats' => ['total' => Document::count(), 'expiring' => Document::whereNotNull('expires_at')->whereBetween('expires_at', [now(), now()->addDays(60)])->count(), 'expired' => Document::where('status', 'expired')->count(), 'by_type' => Document::selectRaw('type, count(*) n')->groupBy('type')->pluck('n', 'type')],
+            'stats' => $this->stats($request),
             'risks' => $this->riskOptions(),
             'can' => ['write' => $request->user()->can('create', Document::class)],
         ]);
@@ -68,6 +68,10 @@ class DocumentController extends Controller
         $allowed = array_merge(config('manrisk.upload_mimes'), ['application/zip', 'application/x-ole-storage', 'application/CDFV2']);
         if (!in_array($detected, $allowed, true)) {
             return back()->withErrors(['file' => 'Isi berkas tidak sesuai dengan tipe yang diizinkan (' . $detected . ').']);
+        }
+        if (($scan = $this->virusScan($file->getRealPath())) !== true) {
+            \App\Models\AuthLog::write('upload_blocked', $request->user()->email, $request->user(), mb_substr((string) $scan, 0, 200));
+            return back()->withErrors(['file' => 'Berkas ditolak oleh pemindai antivirus.']);
         }
         $ext = strtolower($file->getClientOriginalExtension());
         $name = Str::uuid() . '.' . $ext;
@@ -112,5 +116,24 @@ class DocumentController extends Controller
         $this->authorize('delete', $document);
         $document->delete(); // soft delete; berkas dipertahankan untuk jejak audit
         return $this->ok('Dokumen dihapus.');
+    }
+
+    private function stats(Request $request): array
+    {
+        $base = fn () => \App\Support\UnitScope::morph(Document::query(), $request->user());
+        return ['total' => $base()->count(), 'expiring' => $base()->whereNotNull('expires_at')->whereBetween('expires_at', [now(), now()->addDays(60)])->count(),
+            'expired' => $base()->where('status', 'expired')->count(), 'by_type' => $base()->selectRaw('type, count(*) n')->groupBy('type')->pluck('n', 'type')];
+    }
+
+    /** true bila bersih atau pemindai tidak dikonfigurasi; string pesan bila terdeteksi/galat. */
+    private function virusScan(string $path)
+    {
+        $bin = config('manrisk.clamav_path');
+        if (!$bin || !is_executable($bin)) {
+            return true;
+        }
+        $out = [];
+        exec(escapeshellcmd($bin) . ' --no-summary ' . escapeshellarg($path) . ' 2>&1', $out, $code);
+        return $code === 0 ? true : ('clamav exit ' . $code . ': ' . implode(' ', $out));
     }
 }

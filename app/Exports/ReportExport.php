@@ -34,6 +34,20 @@ class ReportExport implements FromArray, WithHeadings, ShouldAutoSize, WithStyle
 
     public function array(): array
     {
+        return array_map(fn ($row) => array_map([self::class, 'safe'], $row), $this->rows());
+    }
+
+    /** Netralkan sel yang diawali karakter formula (=, +, -, @, tab, CR) — CSV/Excel injection. */
+    public static function safe($v)
+    {
+        if (is_string($v) && $v !== '' && in_array($v[0], ['=', '+', '-', '@', "\t", "\r"], true)) {
+            return "'" . $v;
+        }
+        return $v;
+    }
+
+    private function rows(): array
+    {
         $d = $this->data;
         return match ($this->type) {
             'action_plans' => $d['plans']->map(fn ($p) => [$p->code, $p->risk?->code, $p->title, $p->pic?->name, config('manrisk.priorities')[$p->priority] ?? $p->priority, $p->start_date?->format('Y-m-d'), $p->due_date?->format('Y-m-d'), $p->progress, $p->status_label, $p->budget])->all(),
