@@ -38,8 +38,8 @@ class HandleInertiaRequests extends Middleware
                 ] : null,
             ],
             'badges' => fn () => $user ? [
-                'alerts' => Alert::whereNull('read_at')->count(),
-                'approvals' => Approval::where('status', 'pending')->with('steps')->get()
+                'alerts' => \App\Support\UnitScope::morph(Alert::query(), $user)->whereNull('read_at')->whereNull('handled_at')->count(),
+                'approvals' => \App\Support\UnitScope::morph(Approval::query(), $user, false)->where('status', 'pending')->with('steps')->get()
                     ->filter(fn ($a) => $a->requester_id !== $user->id && ($s = $a->steps->firstWhere('step_no', $a->current_step)) && ($s->role === $user->role || $user->role === 'super_admin'))->count(),
             ] : null,
             'flash' => [

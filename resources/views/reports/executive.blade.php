@@ -11,6 +11,7 @@
 <table><thead><tr><th>Kode</th><th>Risiko</th><th>Unit</th><th class="num">Residual</th><th>Level</th><th>Evaluasi</th><th>Treatment</th><th>Tren</th></tr></thead><tbody>
 @foreach($risks->take(15) as $r)<tr><td>{{ $r->code }}</td><td><b>{{ $r->name }}</b></td><td>{{ $r->unit?->name }}</td><td class="num">{{ $r->residual_score }}</td><td><span class="lv {{ $r->residual_level }}">{{ \App\Support\Scoring::levelLabel($r->residual_level) }}</span></td><td>{{ \App\Support\Scoring::EVALUATIONS[$r->evaluation] ?? '' }}</td><td>{{ config('manrisk.treatments')[$r->treatment] ?? '' }}</td><td>{{ ['up' => 'Naik', 'down' => 'Turun', 'flat' => 'Tetap'][$r->trend] ?? '' }}</td></tr>@endforeach
 </tbody></table>
+@if(!empty($ai_label))<p class="meta"><i>Rekomendasi disusun dengan bantuan aturan/AI dan telah ditinjau pembuat laporan.</i></p>@endif
 <h2>4. Rekomendasi</h2>
 <ul>
 <li>Prioritaskan penyelesaian action plan untuk {{ $summary['very_high'] + $summary['high'] }} risiko berlevel tinggi/sangat tinggi.</li>

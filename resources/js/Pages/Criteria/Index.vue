@@ -8,7 +8,7 @@ import Modal from '../../Components/Modal.vue';
 import Field from '../../Components/Field.vue';
 import Pill from '../../Components/Pill.vue';
 import { fmt, lvKey } from '../../lib/format';
-const props = defineProps({ versions: Array, categories: Array, default_matrix: Object, can: Object });
+const props = defineProps({ versions: Array, categories: Array, default_matrix: Object, appetite: Object, can: Object });
 const L = usePage().props.labels;
 const tab = ref('criteria');
 const active = computed(() => props.versions.find((v) => v.active) || props.versions[0]);
@@ -42,6 +42,7 @@ const activate = (v) => { if (confirm(`Aktifkan kriteria versi ${v.version}? Sel
     <div class="card" style="grid-column:span 6"><div class="card-h"><h3>Skala kemungkinan</h3></div><div class="card-b flush tbl-wrap"><table class="tbl"><thead><tr><th class="num">Nilai</th><th>Label</th><th>Deskripsi</th></tr></thead><tbody><tr v-for="x in view.likelihood" :key="x.v"><td class="num mono">{{ x.v }}</td><td class="t-main">{{ x.label }} <span class="muted">{{ x.en }}</span></td><td class="fg2 wrap">{{ x.desc }}</td></tr></tbody></table></div></div>
     <div class="card" style="grid-column:span 6"><div class="card-h"><h3>Skala dampak</h3><span class="sub">{{ (view.dimensions || []).map((d) => d.label).join(' · ') }}</span></div><div class="card-b flush tbl-wrap"><table class="tbl"><thead><tr><th class="num">Nilai</th><th>Label</th><th v-for="d in view.dimensions" :key="d.key">{{ d.label }}</th></tr></thead><tbody><tr v-for="x in view.impact" :key="x.v"><td class="num mono">{{ x.v }}</td><td class="t-main">{{ x.label }}</td><td v-for="d in view.dimensions" :key="d.key" class="fg2 wrap" style="font-size:12px">{{ x.dims?.[d.key] }}</td></tr></tbody></table></div></div>
   </div>
+  <div v-if="tab === 'taxonomy'" class="alert-box info"><Icon name="flag" /><div><b>Pernyataan risk appetite:</b> {{ appetite?.appetite_statement || 'Belum ditetapkan — isi di Pengaturan Organisasi.' }}<div v-if="appetite?.appetite_basis" class="hint">Dasar: {{ appetite.appetite_basis }} · ditetapkan {{ fmt.date(appetite.appetite_date) }}</div></div></div>
   <div v-if="tab === 'taxonomy'" class="card"><div class="card-b flush tbl-wrap"><table class="tbl"><thead><tr><th>Kategori</th><th>Deskripsi</th><th class="num">Appetite</th><th class="num">Tolerance</th><th class="num">Risiko aktif</th><th>Status</th><th></th></tr></thead><tbody>
     <tr v-for="c in categories" :key="c.id"><td class="t-main">{{ c.name }}<div class="t-sub">{{ c.name_en }}</div></td><td class="fg2 wrap">{{ c.description }}</td><td class="num mono">{{ c.appetite }}</td><td class="num mono">{{ c.tolerance }}</td><td class="num">{{ c.risks_count }}</td><td><Pill :value="c.active ? 'active' : 'inactive'" /></td><td><span class="row" style="justify-content:flex-end"><button v-if="can.write" type="button" class="btn sm c-blue" @click="catItem = c; catModal = true">Ubah</button><ConfirmButton v-if="can.delete" :href="`/criteria/categories/${c.id}`" /></span></td></tr>
   </tbody></table></div></div>

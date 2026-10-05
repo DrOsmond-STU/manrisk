@@ -1,5 +1,5 @@
 // Uji CRUD lewat UI nyata: officer buat risiko → submit; owner & manager setujui; action plan progres; KRI; insiden; unit; pengguna
-import { chromium } from 'playwright';
+import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
 const BASE = 'http://127.0.0.1:8010';
 const browser = await chromium.launch();
 const errors = []; const log = (m) => console.log('✔', m);
@@ -16,7 +16,7 @@ const officer = await mk(); await login(officer, 'officer@manrisk.id');
 await officer.goto(`${BASE}/risks/create`);
 await fill(officer, 'Nama risiko', 'Uji E2E kebocoran data pelanggan');
 await selFirst(officer, 'Unit kerja pemilik'); await selFirst(officer, 'Risk owner'); await selFirst(officer, 'Kategori (taksonomi)', 2);
-await fill(officer, 'Penyebab (karena…)', 'akses basis data tidak dibatasi'); await fill(officer, 'Peristiwa risiko (mungkin terjadi…)', 'kebocoran data pelanggan'); await fill(officer, 'Dampak (yang berdampak pada…)', 'sanksi regulator dan reputasi');
+await fill(officer, 'Penyebab (karena…)', 'akses basis data tidak dibatasi'); await fill(officer, 'Peristiwa risiko (dapat terjadi…)', 'kebocoran data pelanggan'); await fill(officer, 'Dampak (sehingga menyebabkan…)', 'sanksi regulator dan reputasi');
 await officer.click('text=Berikutnya ›');
 await officer.locator('.card:has-text("Inheren") .hm .cell').nth(4).click(); // L5 I5
 await officer.locator('.card:has-text("Residual") .hm .cell').nth(8).click(); // L4 I4 = 16

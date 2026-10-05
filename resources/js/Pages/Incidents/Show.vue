@@ -26,6 +26,8 @@ const saveLesson = () => lf.post(`/incidents/${i.id}/lessons`, { onSuccess: () =
     <Pill :value="i.status" /><Link href="/incidents" class="btn ghost c-indigo">‹ Daftar</Link>
     <button v-if="can.update" type="button" class="btn c-blue" @click="modal = 'edit'">Ubah / perbarui status</button>
     <button v-if="can.update" type="button" class="btn c-cyan" @click="modal = 'lesson'"><Icon name="book" />Lesson learned</button>
+    <Link v-if="!i.risk && can.create_risk" :href="`/risks/create?incident=${i.id}`" class="btn c-green"><Icon name="plus" />Buat risiko dari insiden</Link>
+    <Link v-if="can.update" :href="`/improvements?from=incident&ref=${i.code}`" class="btn c-teal"><Icon name="up" />Improvement</Link>
     <ConfirmButton v-if="$page.props.auth.user.role !== 'auditor' && can.update && ['super_admin', 'risk_admin', 'risk_manager'].includes($page.props.auth.user.role)" :href="`/incidents/${i.id}`" cls="btn c-red" />
   </PageHead>
   <div class="s-grid">

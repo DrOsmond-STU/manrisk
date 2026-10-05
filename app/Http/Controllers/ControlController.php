@@ -16,7 +16,8 @@ class ControlController extends Controller
     {
         $this->authorize('viewAny', Control::class);
         $f = $request->validate(['q' => ['nullable', 'string', 'max:100'], 'type' => ['nullable', Rule::in(['preventive', 'detective', 'corrective'])], 'eff' => ['nullable', Rule::in(['weak', 'ok'])]]);
-        $q = Control::with(['owner:id,name', 'unit:id,name', 'risks:id,code,name,residual_level'])->withCount('assessments');
+        $ids = $request->user()->accessibleUnitIds();
+        $q = Control::with(['owner:id,name', 'unit:id,name', 'risks' => fn ($r) => $r->select('risks.id', 'code', 'name', 'residual_level', 'unit_id')->when($ids !== null, fn ($x) => $x->whereIn('unit_id', $ids))])->withCount('assessments');
         if (!empty($f['q'])) {
             $q->where(fn ($w) => $w->where('code', 'like', "%{$f['q']}%")->orWhere('name', 'like', "%{$f['q']}%"));
         }
@@ -38,6 +39,7 @@ class ControlController extends Controller
                 'untested' => $all->whereNull('operating_eff')->count(),
                 'due' => $all->filter(fn ($c) => $c->next_test_at && $c->next_test_at->isPast())->count(),
                 'by_type' => $all->countBy('type'),
+                'risks_without_controls' => $this->scopeUnits(\App\Models\Risk::query())->where('status', '!=', 'closed')->doesntHave('controls')->count(),
             ],
             'users' => $this->userOptions(),
             'units' => $this->unitOptions(),
@@ -49,7 +51,8 @@ class ControlController extends Controller
     public function show(Control $control)
     {
         $this->authorize('view', $control);
-        $control->load(['owner:id,name', 'unit:id,name', 'risks:id,code,name,residual_score,residual_level', 'assessments' => fn ($q) => $q->with('tester:id,name')->orderByDesc('tested_at'), 'documents.uploader:id,name']);
+        $ids = auth()->user()->accessibleUnitIds();
+        $control->load(['owner:id,name', 'unit:id,name', 'risks' => fn ($r) => $r->select('risks.id', 'code', 'name', 'residual_score', 'residual_level', 'unit_id')->when($ids !== null, fn ($x) => $x->whereIn('unit_id', $ids)), 'assessments' => fn ($q) => $q->with('tester:id,name')->orderByDesc('tested_at'), 'documents.uploader:id,name']);
         return Inertia::render('Controls/Show', ['control' => $control->toArray() + ['overall' => $control->overallEffectiveness()], 'can' => ['write' => auth()->user()->can('update', $control)]]);
     }
 
@@ -94,7 +97,27 @@ class ControlController extends Controller
         ControlAssessment::create(['control_id' => $control->id, 'tester_id' => $request->user()->id] + collect($data)->only('tested_at', 'design_eff', 'operating_eff', 'note')->all());
         $control->update(['design_eff' => $data['design_eff'], 'operating_eff' => $data['operating_eff'], 'last_tested_at' => $data['tested_at'],
             'next_test_at' => $data['next_test_at'] ?? $this->nextTest($control->frequency, $data['tested_at'])]);
+        if (min($data['design_eff'], $data['operating_eff']) <= 1) {
+            $this->controlFailure($control, $data['note'] ?? null, $request->user());
+            return $this->ok('Hasil pengujian dicatat. Kontrol Tidak Efektif: improvement plan dibuka dan risiko terkait ditandai untuk ditinjau.');
+        }
         return $this->ok('Hasil pengujian kontrol dicatat.');
+    }
+
+    /** Kegagalan kontrol → improvement plan + peringatan peninjauan residual risiko terkait. */
+    private function controlFailure(Control $control, ?string $note, $user): void
+    {
+        $open = \App\Models\Improvement::where('source_type', 'control_failure')->where('source_ref', $control->code)->where('status', '!=', 'done')->exists();
+        if (!$open) {
+            \App\Models\Improvement::create(['code' => Numbering::next(\App\Models\Improvement::class, 'IMP'), 'source_type' => 'control_failure', 'source_ref' => $control->code,
+                'title' => "Perbaikan kontrol tidak efektif: {$control->name}", 'description' => $note, 'pic_id' => $control->owner_id, 'unit_id' => $control->unit_id,
+                'due_date' => now()->addDays(30), 'status' => 'open']);
+        }
+        $alerts = app(\App\Services\AlertService::class);
+        foreach ($control->risks()->get() as $risk) {
+            $alerts->raise('control_failure', 'warning', $risk, "Kontrol {$control->code} tidak efektif — tinjau residual risiko {$risk->code}", $control->name,
+                route('risks.show', $risk, false), "ctlfail:{$control->id}:{$risk->id}:" . now()->format('Y-m-d'), array_filter([$risk->owner]));
+        }
     }
 
     private function nextTest(string $frequency, string $from): string
@@ -122,7 +145,7 @@ class ControlController extends Controller
             'operating_eff' => ['nullable', 'integer', 'between:1,4'],
             'active' => ['nullable', 'boolean'],
             'risk_ids' => ['nullable', 'array'],
-            'risk_ids.*' => ['integer', Rule::exists('risks', 'id')->where('organization_id', $org)],
+            'risk_ids.*' => ['integer', Rule::exists('risks', 'id')->where('organization_id', $org)->where(fn ($q) => ($ids = $request->user()->accessibleUnitIds()) !== null ? $q->whereIn('unit_id', $ids) : $q)],
         ]);
     }
 }

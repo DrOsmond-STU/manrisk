@@ -21,6 +21,7 @@ class CriteriaController extends Controller
             'versions' => CriteriaVersion::with('creator:id,name')->orderByDesc('version')->get(),
             'categories' => RiskCategory::withCount(['risks' => fn ($q) => $q->where('status', '!=', 'closed')])->orderBy('sort')->get(),
             'default_matrix' => Scoring::defaultMatrix(),
+            'appetite' => collect(auth()->user()->organization?->settings ?? [])->only('appetite_statement', 'appetite_basis', 'appetite_date'),
             'can' => ['write' => auth()->user()->can('create', CriteriaVersion::class), 'delete' => auth()->user()->can('delete', new RiskCategory())],
         ]);
     }

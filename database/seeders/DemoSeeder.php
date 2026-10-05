@@ -412,7 +412,7 @@ class DemoSeeder extends Seeder
         $src = ['Kegagalan Kontrol' => 'control_failure', 'Lessons Learned' => 'lesson', 'Insiden' => 'incident', 'Temuan Audit' => 'audit', 'Pelanggaran KRI' => 'kri_breach', 'Evaluasi Treatment' => 'treatment', 'Tren Risiko' => 'trend', 'Hasil Review' => 'review'];
         $st = ['Belum Mulai' => 'open', 'Berjalan' => 'in_progress', 'Selesai' => 'done'];
         foreach ($this->d['IMPROVE'] as $i => $im) {
-            Improvement::create(['code' => 'IMP-2026-' . str_pad((string) ($i + 1), 3, '0', STR_PAD_LEFT), 'source_type' => $src[$im['src']] ?? 'other', 'source_ref' => $im['ref'], 'title' => $im['t'], 'description' => "Penanggung jawab: {$im['pic']}.",
+            Improvement::create(['code' => \App\Support\Numbering::next(Improvement::class, 'IMP', $this->org->id), 'source_type' => $src[$im['src']] ?? 'other', 'source_ref' => $im['ref'], 'title' => $im['t'], 'description' => "Penanggung jawab: {$im['pic']}.",
                 'pic_id' => User::where('role', 'risk_manager')->value('id'), 'unit_id' => $this->units[$im['pic']] ?? null, 'due_date' => $im['due'], 'status' => $st[$im['st']] ?? 'open']);
         }
         $lessons = ['Pengujian kontrol harus dijadwalkan di kalender bersama agar tidak terlewat.', 'KRI yang dipantau mingguan memberi peringatan lebih dini dibanding bulanan.', 'Integrasi data kepegawaian dengan direktori akun mencegah akun yatim.'];

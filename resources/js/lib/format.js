@@ -15,7 +15,7 @@ export const LV = { low: 'l', medium: 'm', high: 'h', very_high: 'vh' };
 export const lvKey = (level) => LV[level] || 'm';
 export const lvFromScore = (s) => (s >= 16 ? 'very_high' : s >= 10 ? 'high' : s >= 5 ? 'medium' : 'low');
 export const EVAL_PILL = { acceptable: 'ok', monitor: 'run', treat: 'warn', escalate: 'bad', critical: 'bad' };
-export const STATUS_PILL = { draft: '', pending: 'warn', treating: 'run', monitoring: 'ok', closed: 'off', reported: 'warn', investigating: 'run', corrective: 'run', open: 'warn', in_progress: 'run', done: 'ok', todo: '', running: 'run', overdue: 'bad', cancelled: 'off', normal: 'ok', warning: 'warn', critical: 'bad', approved: 'ok', rejected: 'bad', revision: 'warn', met: 'ok', partial: 'warn', unmet: 'bad', review: 'run', expired: 'bad', active: 'ok', inactive: 'off' };
+export const STATUS_PILL = { draft: '', pending: 'warn', treating: 'run', monitoring: 'ok', closed: 'off', reported: 'warn', investigating: 'run', corrective: 'run', open: 'warn', in_progress: 'run', done: 'ok', todo: '', verify: 'warn', running: 'run', overdue: 'bad', cancelled: 'off', normal: 'ok', warning: 'warn', critical: 'bad', approved: 'ok', rejected: 'bad', revision: 'warn', met: 'ok', partial: 'warn', unmet: 'bad', review: 'run', expired: 'bad', active: 'ok', inactive: 'off' };
 export const PALETTE = ['c-blue', 'c-violet', 'c-teal', 'c-orange', 'c-pink', 'c-green', 'c-indigo', 'c-cyan', 'c-amber'];
 export const toast = (msg, kind = 'info') => {
     let box = document.getElementById('toasts');

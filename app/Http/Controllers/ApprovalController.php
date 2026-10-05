@@ -14,7 +14,7 @@ class ApprovalController extends Controller
     {
         $this->authorize('viewAny', Approval::class);
         $user = $request->user();
-        $all = Approval::with(['steps.approver:id,name', 'requester:id,name', 'subject'])->latest()->get();
+        $all = \App\Support\UnitScope::morph(Approval::query(), $user, false)->with(['steps.approver:id,name', 'requester:id,name', 'subject'])->latest()->limit(500)->get();
         $mine = $all->filter(fn ($a) => $a->status === 'pending' && $a->requester_id !== $user->id && ($s = $a->steps->firstWhere('step_no', $a->current_step)) && ($s->role === $user->role || $user->role === 'super_admin'));
         $map = fn ($a) => [
             'id' => $a->id, 'code' => $a->code, 'type' => $a->type, 'type_label' => ApprovalService::TYPES[$a->type] ?? $a->type, 'status' => $a->status,

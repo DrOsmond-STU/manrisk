@@ -33,7 +33,7 @@ class UserController extends Controller
             'filters' => $f,
             'units' => $this->unitOptions(),
             'stats' => ['total' => User::count(), 'active' => User::where('active', true)->count(), 'by_role' => User::selectRaw('role, count(*) n')->groupBy('role')->pluck('n', 'role')],
-            'auth_logs' => AuthLog::with('user:id,name')->latest('id')->limit(30)->get(),
+            'auth_logs' => AuthLog::with('user:id,name')->where('organization_id', $request->user()->organization_id)->latest('id')->limit(30)->get(),
         ]);
     }
 
@@ -54,7 +54,15 @@ class UserController extends Controller
         if ($user->id === $request->user()->id && (($data['role'] ?? $user->role) !== 'super_admin' || isset($data['active']) && !$data['active'])) {
             return back()->with('error', 'Anda tidak dapat menurunkan peran atau menonaktifkan akun sendiri.');
         }
+        if ($user->role === 'super_admin' && (($data['role'] ?? 'super_admin') !== 'super_admin' || (isset($data['active']) && !$data['active'])) && $this->isLastSuperAdmin($user)) {
+            return back()->with('error', 'Harus ada minimal satu Super Admin aktif.');
+        }
+        $wasActive = $user->active;
+        $roleChanged = ($data['role'] ?? $user->role) !== $user->role;
         $user->update(collect($data)->except('password')->all());
+        if (($wasActive && !$user->active) || $roleChanged) {
+            \App\Support\SessionManager::revokeAll($user); // hak akses berubah → sesi lama diputus
+        }
         return $this->ok('Pengguna diperbarui.');
     }
 
@@ -63,6 +71,7 @@ class UserController extends Controller
         $this->authorize('update', $user);
         $temp = $this->temporaryPassword();
         PasswordPolicy::apply($user, $temp, true);
+        \App\Support\SessionManager::revokeAll($user);
         AuthLog::write('password_reset', $user->email, $user, 'by=' . $request->user()->email);
         return back()->with('success', "Kata sandi {$user->name} direset.")->with('temp_password', ['email' => $user->email, 'password' => $temp]);
     }
@@ -73,7 +82,13 @@ class UserController extends Controller
         if ($user->id === $request->user()->id) {
             return back()->with('error', 'Tidak dapat menonaktifkan akun sendiri.');
         }
+        if ($user->active && $user->role === 'super_admin' && $this->isLastSuperAdmin($user)) {
+            return back()->with('error', 'Harus ada minimal satu Super Admin aktif.');
+        }
         $user->update(['active' => !$user->active]);
+        if (!$user->active) {
+            \App\Support\SessionManager::revokeAll($user);
+        }
         AuthLog::write($user->active ? 'user_enabled' : 'user_disabled', $user->email, $user, 'by=' . $request->user()->email);
         return $this->ok($user->active ? 'Akun diaktifkan.' : 'Akun dinonaktifkan; sesi aktifnya akan diputus.');
     }
@@ -84,21 +99,31 @@ class UserController extends Controller
         if ($user->id === $request->user()->id) {
             return back()->with('error', 'Tidak dapat menghapus akun sendiri.');
         }
+        // Spesifikasi F-ADM-01: hanya akun yang belum pernah masuk & tanpa keterkaitan data yang boleh dihapus
+        if ($user->last_login_at !== null) {
+            return back()->with('error', 'Akun yang pernah masuk tidak dapat dihapus demi jejak audit; nonaktifkan saja.');
+        }
         if (\App\Models\Risk::where('owner_id', $user->id)->exists()) {
             return back()->with('error', 'Pengguna masih menjadi pemilik risiko; alihkan dahulu atau nonaktifkan akun.');
         }
-        $user->update(['active' => false]);
+        if ($user->role === 'super_admin' && $this->isLastSuperAdmin($user)) {
+            return back()->with('error', 'Harus ada minimal satu Super Admin aktif.');
+        }
+        $email = $user->email;
+        $user->forceFill(['active' => false, 'email' => mb_substr("deleted-{$user->id}-" . $email, 0, 160)])->saveQuietly();
+        \App\Support\SessionManager::revokeAll($user);
         $user->delete();
-        AuthLog::write('user_deleted', $user->email, $user, 'by=' . $request->user()->email);
+        AuthLog::write('user_deleted', $email, $user, 'by=' . $request->user()->email);
         return $this->ok('Pengguna dihapus.');
     }
 
     private function rules(Request $request, ?User $user = null): array
     {
+        $request->merge(['email' => \Illuminate\Support\Str::lower(trim((string) $request->input('email')))]);
         $org = $request->user()->organization_id;
         return $request->validate([
             'name' => ['required', 'string', 'max:120'],
-            'email' => ['required', 'email', 'max:160', Rule::unique('users')->where('organization_id', $org)->ignore($user?->id)->whereNull('deleted_at')],
+            'email' => ['required', 'email:rfc', 'max:160', Rule::unique('users', 'email')->ignore($user?->id)],
             'role' => ['required', Rule::in(array_keys(User::ROLES))],
             'position' => ['nullable', 'string', 'max:120'],
             'unit_id' => ['nullable', Rule::exists('org_units', 'id')->where('organization_id', $org)],
@@ -107,6 +132,11 @@ class UserController extends Controller
             'active' => ['nullable', 'boolean'],
             'password' => ['nullable', 'string', ...PasswordPolicy::rules()],
         ]);
+    }
+
+    private function isLastSuperAdmin(User $user): bool
+    {
+        return !User::where('role', 'super_admin')->where('active', true)->where('id', '!=', $user->id)->exists();
     }
 
     private function temporaryPassword(): string
