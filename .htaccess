@@ -1,0 +1,23 @@
+# ManRisk ERM — situs statis
+DirectoryIndex index.html
+
+# Jangan sajikan metadata Git Deploy dan berkas non-aplikasi
+RedirectMatch 404 /\.git(/|$)
+<FilesMatch "^(README\.md|php\.ini|\.htaccess)$">
+  Require all denied
+</FilesMatch>
+
+# HTML selalu dicek ulang ke server, jadi deploy baru langsung terlihat.
+# JS boleh disimpan lama karena index.html memanggilnya dengan penanda ?v=.
+<IfModule mod_headers.c>
+  <FilesMatch "\.html?$">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
+  <FilesMatch "\.js$">
+    Header set Cache-Control "public, max-age=86400"
+  </FilesMatch>
+</IfModule>
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType text/html "access plus 0 seconds"
+</IfModule>

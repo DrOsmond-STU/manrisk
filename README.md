@@ -31,6 +31,13 @@ Bisa juga diunggah apa adanya ke GitHub Pages, Netlify, atau hosting statis lain
 | `assets/demo-data.js` | Data demo lengkap (127 risiko, action plan, kontrol, KRI, insiden, dokumen, audit trail) dan perhitungan ulang semua agregat dashboard |
 | `assets/app.js` | Router berbasis hash, komponen (heatmap, grafik, sparkline, wizard), dan semua layar |
 
+## Deploy ke server
+
+Situs dipasang di https://manrisk.semestateknologiutama.com lewat Git Deploy (cPanel) dari branch `main`.
+Setiap kali `assets/*.js` berubah, naikkan penanda `?v=` pada tag `<script>` di `index.html`
+agar browser dan proxy server tidak memakai salinan lama. `.htaccess` membuat `index.html` selalu
+dicek ulang ke server dan menyembunyikan folder `.git`.
+
 ## Isi data demo
 
 Semua angka di dashboard dihitung dari data di bawah ini, sehingga heatmap, profil risiko, grafik
