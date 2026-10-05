@@ -11,6 +11,12 @@ STRATEGY → OBJECTIVE → RISK → CONTROL → TREATMENT → KRI → MONITORING
 > (organisasi contoh: *Badan Layanan Digital Nusantara*). Fitur AI, ekspor laporan, dan
 > notifikasi adalah **simulasi** UI.
 
+## Dokumen pengembangan
+
+Spesifikasi lengkap untuk membangun aplikasi produksi (kebutuhan per modul, RBAC, rumus,
+mesin status, arsitektur, model data, API, UI/UX, keamanan, rencana fase, pengujian):
+**[docs/SPESIFIKASI-PENGEMBANGAN.md](docs/SPESIFIKASI-PENGEMBANGAN.md)**.
+
 ## Cara menjalankan
 
 Tidak perlu build atau server. Buka `index.html` langsung di browser, atau jalankan server statis:
