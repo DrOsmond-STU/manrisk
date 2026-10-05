@@ -27,8 +27,29 @@ Bisa juga diunggah apa adanya ke GitHub Pages, Netlify, atau hosting statis lain
 | Berkas | Isi |
 |---|---|
 | `index.html` | Kerangka aplikasi + seluruh CSS (design token terang/gelap, layout responsif) |
-| `assets/data.js` | Data contoh: risiko, kriteria, taksonomi, kontrol, KRI, insiden, pengguna, peran |
+| `assets/data.js` | Data inti: kriteria, taksonomi, 20 risiko unggulan beserta kontrol, KRI, insiden, pengguna, peran |
+| `assets/demo-data.js` | Data demo lengkap (127 risiko, action plan, kontrol, KRI, insiden, dokumen, audit trail) dan perhitungan ulang semua agregat dashboard |
 | `assets/app.js` | Router berbasis hash, komponen (heatmap, grafik, sparkline, wizard), dan semua layar |
+
+## Isi data demo
+
+Semua angka di dashboard dihitung dari data di bawah ini, sehingga heatmap, profil risiko, grafik
+per unit/kategori/sasaran, dan status mitigasi selalu konsisten satu sama lain.
+
+| Data | Jumlah | Keterangan |
+|---|---|---|
+| Risiko | 127 | 8 unit kerja, 10 kategori, 4 sasaran strategis; residual 8 Sangat Tinggi · 23 Tinggi · 61 Sedang · 35 Rendah |
+| Action plan | 216 | PIC, anggaran, tenggat, progres, bukti; status Selesai/Berjalan/Belum Mulai/Terlambat/Dibatalkan |
+| Kontrol | 36 | preventif/detektif/korektif, manual/otomatis, efektivitas desain & operasi |
+| KRI | 18 | tren 12 bulan dengan ambang Normal/Waspada/Kritis |
+| Insiden | 14 | kronologi, penyebab, dampak, kerugian, tindakan korektif; loss event 2024–2026 |
+| Dokumen | 26 | SOP, kebijakan, kontrak, sertifikat, hasil uji, foto & screenshot bukti |
+| Pengguna | 24 | seluruh peran RBAC, Risk Officer di setiap unit |
+| Persetujuan | 13 | risiko baru, perubahan skor, rencana mitigasi, penutupan risiko |
+| Audit trail | 73 | 4 minggu aktivitas dengan nilai sebelum → sesudah |
+| Reviu, perbaikan, laporan | 46 · 11 · 8 | hasil reviu triwulan, improvement plan, riwayat laporan |
+
+Data dibangkitkan secara deterministik, jadi demo selalu menampilkan isi yang sama setiap kali dibuka.
 
 ## Peta layar ↔ rancangan fitur
 
@@ -39,7 +60,7 @@ Bisa juga diunggah apa adanya ke GitHub Pages, Netlify, atau hosting statis lain
 | | KRI & Early Warning | #15, #16 — ambang Normal/Waspada/Kritis, sparkline 12 bulan, umpan peringatan, kanal notifikasi |
 | Manajemen Risiko | Konteks & Kriteria | #3 — ruang lingkup, konteks internal/eksternal (PESTLE), skala kemungkinan & dampak, appetite/tolerance/capacity |
 | | Identifikasi Risiko | #4, #6, #30 — wizard 5 langkah, format *Karena… dapat terjadi… sehingga…*, saran AI, matriks inheren & residual, opsi perlakuan, ajukan ke alur persetujuan |
-| | Risk Register | #5 — filter (level, unit, kategori, status), pencarian, urutan, tautan dari sel heatmap |
+| | Risk Register | #5 — 127 risiko, filter (level, unit, kategori, status), pencarian, urutan, paginasi, tautan dari sel heatmap |
 | | Detail risiko | #5, #9–#14, #17, #21, #22 — tab Ringkasan, Analisis (posisi I/R/P/T di matriks), Kontrol, Mitigasi, KRI, Insiden, Dokumen, Riwayat |
 | | Analisis & Evaluasi | #6, #8 — kalkulator L × I, status evaluasi otomatis terhadap appetite per kategori |
 | | Risk Review | #19 — sebelumnya → saat ini → tren, jadwal reviu bulanan/triwulanan/semester/tahunan |

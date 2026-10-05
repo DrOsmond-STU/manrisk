@@ -119,7 +119,8 @@
     revPeriod: 'TW III 2026',
     auditQ: '',
     nav: false, overlay: null, ctrlSel: null,
-    lastRoute: null
+    lastRoute: null,
+    pg: { reg: 1, act: 1, audit: 1 }
   };
   const roleCfg = () => D.ROLES[S.role];
   const canWrite = () => roleCfg().write;
@@ -140,6 +141,32 @@
     };
   }
   S.wz = newWizard(true);
+
+  /* Ringkasan angka langsung dari data (ikut berubah saat risiko baru diajukan) */
+  function stats() {
+    const rs = S.risks, acts = S.actions, live = acts.filter((a) => !a.cancel);
+    const vh = rs.filter((r) => sc(r.res) >= 16);
+    const byUnit = {}; vh.forEach((r) => { byUnit[r.unit] = (byUnit[r.unit] || 0) + 1; });
+    const top = Object.entries(byUnit).sort((a, b) => b[1] - a[1])[0] || ['0', 0];
+    const late = acts.filter((a) => actStatus(a).k === 'late');
+    const krit = D.KRIS.filter((k) => kriStatus(k).n === 'Kritis');
+    const inc = D.INCIDENTS.filter((i) => i.date.startsWith('2026'));
+    const big = inc.slice().sort((a, b) => b.loss - a.loss)[0];
+    return {
+      total: rs.length, vh: vh.length, topUnit: unitName(+top[0]), topUnitN: top[1], late, krit, inc, big,
+      loss: inc.reduce((t, i) => t + i.loss, 0), acts: acts.length, done: acts.filter((a) => actStatus(a).k === 'done').length,
+      mitig: Math.round(live.reduce((t, a) => t + a.prog, 0) / (live.length || 1)),
+      up: rs.filter((r) => r.trend === 'up'), avg: Math.round((rs.reduce((t, r) => t + sc(r.res), 0) / rs.length) * 10) / 10
+    };
+  }
+  const PER = 25;
+  function paged(key, rows) { const n = Math.max(1, Math.ceil(rows.length / PER)); if (S.pg[key] > n) S.pg[key] = n; const p = S.pg[key]; return { rows: rows.slice((p - 1) * PER, p * PER), p, n, total: rows.length }; }
+  function pager(key, pg) {
+    if (pg.n <= 1) return '';
+    const from = (pg.p - 1) * PER + 1, to = Math.min(pg.total, pg.p * PER);
+    const nums = []; for (let i = 1; i <= pg.n; i++) if (i === 1 || i === pg.n || Math.abs(i - pg.p) <= 1) nums.push(i); else if (nums[nums.length - 1] !== '…') nums.push('…');
+    return `<div class="row between" style="padding:12px 16px;border-top:1px solid var(--line)"><span class="hint">Menampilkan ${from}–${to} dari ${pg.total}</span><div class="row" style="gap:4px">${`<button class="btn sm" data-act="page" data-v="${key}:${pg.p - 1}" ${pg.p === 1 ? 'disabled' : ''} aria-label="Halaman sebelumnya">‹</button>`}${nums.map((i) => (i === '…' ? '<span class="muted" style="padding:0 4px">…</span>' : `<button class="btn sm ${i === pg.p ? 'pri' : ''}" data-act="page" data-v="${key}:${i}" aria-current="${i === pg.p}">${i}</button>`)).join('')}<button class="btn sm" data-act="page" data-v="${key}:${pg.p + 1}" ${pg.p === pg.n ? 'disabled' : ''} aria-label="Halaman berikutnya">›</button></div></div>`;
+  }
 
   /* ======================= Navigasi ======================= */
   const NAV = [
@@ -270,14 +297,7 @@
     return `<div class="journey" style="--n:${stages.length}">${stages.map((s) => { const v = sc(s.a), l = level(v); return `<div class="jstep" style="--c:var(--lv-${l.k})"><div class="js-l">${s.l}</div><div class="js-v"><b>${v}</b>${lvChip(v)}</div><div class="js-f">K${s.a[0]} × D${s.a[1]}</div><div class="js-bar"><i style="width:${(v / 25) * 100}%"></i></div></div>`; }).join('')}</div>`;
   }
 
-  const WARNINGS = [
-    { c: 'var(--lv-vh)', i: 'alert', t: '<b>KRITIS</b> · KRI downtime sistem layanan 3,4 jam telah melewati batas toleransi 3 jam.', m: 'K-01 · R-001 · 5 Okt 2026 08:00', go: 'kri' },
-    { c: 'var(--lv-h)', i: 'up', t: '<b>PERINGATAN</b> · Risiko “Serangan ransomware pada sistem layanan” meningkat dari Tinggi menjadi Sangat Tinggi.', m: 'R-002 · 5 Okt 2026 14:32', go: 'risk-R-002' },
-    { c: 'var(--lv-vh)', i: 'alert', t: '<b>KRITIS</b> · 6 posisi kunci belum memiliki pengganti (batas 5).', m: 'K-08 · R-009 · 1 Okt 2026', go: 'kri' },
-    { c: 'var(--lv-h)', i: 'clock', t: '<b>PERINGATAN</b> · 3 action plan melewati tenggat: A-005, A-009, A-014.', m: 'Mitigasi · 1 Okt 2026', go: 'treatment' },
-    { c: 'var(--lv-m)', i: 'gauge', t: 'SLA penyedia cloud 99,4% berada di bawah target 99,5%.', m: 'K-04 · R-004 · 30 Sep 2026', go: 'kri' },
-    { c: 'var(--accent)', i: 'file', t: 'Sertifikat ISO/IEC 27001 kedaluwarsa dalam 27 hari.', m: 'Dokumen · 5 Okt 2026', go: 'documents' }
-  ];
+  const WARNINGS = D.WARNINGS;
   const feed = (items) => `<div class="feed">${items.map((w) => `<a class="fitem" href="#${w.go}" style="--c:${w.c};text-decoration:none;color:inherit"><span class="fi">${ic(w.i)}</span><div><div class="ft">${w.t}</div><div class="fm mono">${w.m}</div></div></a>`).join('')}</div>`;
 
   function riskRow(r, i) {
@@ -292,10 +312,10 @@
     const P = D.PROFILE, inh = S.heat === 'inh';
     const lvTile = (k, n, v, prev) => `<div style="--c:var(--lv-${k})"><div class="k-l"><span class="lv lv-${k}" style="padding:0;background:none"><i></i></span>${n}</div><div class="k-v">${v}</div><div class="k-s">${Math.round((v / P.total) * 100)}% · inheren ${prev}</div><div class="meter"><i style="width:${(v / P.total) * 100}%"></i></div></div>`;
     const top = S.risks.filter((r) => r.status !== 'Ditutup').slice().sort((a, b) => sc(b.res) - sc(a.res) || sc(b.inh) - sc(a.inh)).slice(0, 10);
-    const r2 = riskById('R-002');
+    const r2 = riskById('R-002'), st = stats(), maxObj = Math.max(...D.OBJECTIVES.map((o) => o.cnt));
     return `
     ${ph(`ISO 31000 · 6.7 Pencatatan & Pelaporan · ${D.ORG.period}`, 'Executive Risk Dashboard', `Profil risiko ${esc(D.ORG.name)} pada level residual, yaitu setelah memperhitungkan kontrol yang sudah berjalan.`, `<a class="btn" href="#risk-dash">${ic('pulse')}Detail operasional</a><a class="btn pri" href="#reports" data-act="gen-report">${ic('spark')}Laporan eksekutif AI</a>`)}
-    <div class="callout"><span class="ai-ic">${ic('spark')}</span><div style="flex:1;min-width:0"><p>Terdapat <b>8 risiko Sangat Tinggi</b> yang membutuhkan perhatian manajemen; 5 di antaranya berada di Direktorat Teknologi Informasi. Risiko ransomware naik dari Tinggi ke Sangat Tinggi bulan ini. Realisasi mitigasi mencapai <b>78%</b>, namun 17 action plan melewati tenggat.</p><small>Ringkasan AI dari risk register, KRI, dan action plan · diperbarui 5 Okt 2026 14:40</small></div><a class="btn sm" href="#ai">Tanya AI</a></div>
+    <div class="callout"><span class="ai-ic">${ic('spark')}</span><div style="flex:1;min-width:0"><p>Terdapat <b>${st.vh} risiko Sangat Tinggi</b> yang membutuhkan perhatian manajemen; ${st.topUnitN} di antaranya berada di ${esc(st.topUnit)}. Risiko ransomware naik dari Tinggi ke Sangat Tinggi bulan ini dan backlog permohonan perizinan menembus 5.200 berkas. Realisasi mitigasi mencapai <b>${st.mitig}%</b>, namun ${st.late.length} action plan melewati tenggat.</p><small>Ringkasan AI dari risk register, KRI, dan action plan · diperbarui 5 Okt 2026 14:40</small></div><a class="btn sm" href="#ai">Tanya AI</a></div>
     <div class="profile">
       <div class="total"><div class="k-l">Total risiko organisasi</div><div class="k-v">${P.total}</div><div class="k-s">${P.newQ} risiko baru triwulan ini · ${P.closed} ditutup</div></div>
       ${lvTile('vh', 'Sangat Tinggi', P.vh, P.inh.vh)}${lvTile('h', 'Tinggi', P.h, P.inh.h)}${lvTile('m', 'Sedang', P.m, P.inh.m)}${lvTile('l', 'Rendah', P.l, P.inh.l)}
@@ -315,7 +335,7 @@
         </div>`)}</div>
       <div class="s-12">${card(`Perjalanan risiko · <a href="#risk-R-002">${r2.id} ${esc(r2.name)}</a>`, journey([{ l: 'Inheren', a: r2.inh }, { l: 'Setelah kontrol eksisting', a: r2.res }, { l: 'Proyeksi setelah mitigasi', a: r2.proj }, { l: 'Target (risk appetite)', a: r2.tgt }]), { sub: 'Inherent → Control → Treatment → Target' })}</div>
       <div class="s-6">${card('Risiko per kategori', barList(D.TAXONOMY.map((t) => [t.k, t.cnt]).sort((a, b) => b[1] - a[1])), { sub: `${P.total} risiko` })}</div>
-      <div class="s-6">${card('Risiko per sasaran strategis', `<div class="stack">${D.OBJECTIVES.map((o) => `<a href="#objective" data-act="obj" data-v="${o.id}" style="text-decoration:none;color:inherit;display:grid;grid-template-columns:44px minmax(0,1fr) 40px;gap:10px;align-items:center" data-tip="${esc(o.n)}<br>IKU: ${esc(o.ik)}"><span class="mono muted">${o.id}</span><span style="min-width:0"><span style="display:block;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(o.n)}</span><span class="prog" style="min-width:0"><span class="bar"><i style="width:${(o.cnt / 41) * 100}%"></i></span></span></span><span class="mono" style="text-align:right">${o.cnt}</span></a>`).join('')}</div>`, { sub: 'klik untuk melihat pemetaan' })}</div>
+      <div class="s-6">${card('Risiko per sasaran strategis', `<div class="stack">${D.OBJECTIVES.map((o) => `<a href="#objective" data-act="obj" data-v="${o.id}" style="text-decoration:none;color:inherit;display:grid;grid-template-columns:44px minmax(0,1fr) 40px;gap:10px;align-items:center" data-tip="${esc(o.n)}<br>IKU: ${esc(o.ik)}"><span class="mono muted">${o.id}</span><span style="min-width:0"><span style="display:block;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(o.n)}</span><span class="prog" style="min-width:0"><span class="bar"><i style="width:${(o.cnt / maxObj) * 100}%"></i></span></span></span><span class="mono" style="text-align:right">${o.cnt}</span></a>`).join('')}</div>`, { sub: 'klik untuk melihat pemetaan' })}</div>
     </div>`;
   };
 
@@ -340,9 +360,10 @@
         <table class="tbl" style="margin-top:12px"><tbody>${segs.map((s) => `<tr><td style="padding-left:0"><span class="legend"><span style="--c:${s[3]}"><i></i>${s[1]}</span></span></td><td class="num">${s[2]}</td><td class="num muted" style="padding-right:0">${Math.round((s[2] / M.total) * 100)}%</td></tr>`).join('')}</tbody></table>
         <a class="btn sm" href="#treatment" style="margin-top:10px">Kelola action plan →</a>`, { sub: `${M.total} action plan` })}</div>
       <div class="s-6">${card('Risiko per unit kerja', barList(D.BY_UNIT), { sub: 'total risiko · hover untuk level' })}</div>
-      <div class="s-6">${card('Risiko per proses bisnis', barList(D.BY_PROCESS), { sub: '6 proses teratas' })}</div>
+      <div class="s-6">${card('Risiko per proses bisnis', barList(D.BY_PROCESS), { sub: `${D.BY_PROCESS.length} proses teratas` })}</div>
       <div class="s-6">${card('Top emerging risks', `<div class="rlist">${emerging.map(riskRow).join('')}</div>`, { flush: true, sub: 'tren meningkat' })}</div>
-      <div class="s-6">${card('Peringatan terbaru', feed(WARNINGS.slice(0, 4)), { flush: true, extra: '<a class="btn sm ghost" href="#kri">Semua →</a>' })}</div>
+      <div class="s-6">${card('Peringatan terbaru', feed(WARNINGS.slice(0, 5)), { flush: true, extra: '<a class="btn sm ghost" href="#kri">Semua →</a>' })}</div>
+      <div class="s-12">${card('Aktivitas terbaru', auditTable(S.audit.slice(0, 8)), { flush: true, extra: allowed('audit') ? '<a class="btn sm ghost" href="#audit">Audit trail →</a>' : '' })}</div>
     </div>`;
   };
 
@@ -355,7 +376,7 @@
       ${kpi('<span class="lv lv-vh" style="padding:0;background:none"><i></i></span>Kritis', cnt('Kritis'), 'melewati batas toleransi', 'lvl', '--c:var(--lv-vh)')}
       ${kpi('<span class="lv lv-m" style="padding:0;background:none"><i></i></span>Waspada', cnt('Waspada'), 'di zona peringatan', 'lvl', '--c:var(--lv-m)')}
       ${kpi('<span class="lv lv-l" style="padding:0;background:none"><i></i></span>Normal', cnt('Normal'), 'dalam batas', 'lvl', '--c:var(--lv-l)')}
-      ${kpi('Data otomatis', '5 / 8', 'via API (ITSM, SIEM, SIMPEG)')}
+      ${kpi('Data otomatis', `${D.KRIS.length - 7} / ${D.KRIS.length}`, 'via API (ITSM, SIEM, SIMPEG, SAKTI)')}
     </div>
     <div class="kri-grid">${D.KRIS.slice().sort((a, b) => ['Kritis', 'Waspada', 'Normal'].indexOf(kriStatus(a).n) - ['Kritis', 'Waspada', 'Normal'].indexOf(kriStatus(b).n)).map(kriCard).join('')}</div>
     <div class="grid g-12">
@@ -502,7 +523,7 @@
     return rs;
   }
   V.register = function () {
-    const f = S.reg, rs = filteredRisks();
+    const f = S.reg, rs = filteredRisks(), pg = paged('reg', rs);
     const chips = [];
     if (f.cell) chips.push(['cell', `Sel heatmap K${f.cell.split('-')[0]}×D${f.cell.split('-')[1]} (${S.heat === 'inh' ? 'inheren' : 'residual'})`]);
     if (f.q) chips.push(['q', `“${f.q}”`]);
@@ -517,11 +538,11 @@
         <select class="sel" id="reg-st" data-reg="st" aria-label="Status"><option value="">Semua status</option>${sts.map((s) => opt(s, s, f.st)).join('')}</select>
         <select class="sel" id="reg-sort" data-reg="sort" aria-label="Urutkan">${[['res', 'Urut: skor residual'], ['inh', 'Urut: skor inheren'], ['due', 'Urut: target terdekat'], ['id', 'Urut: ID']].map(([v, l]) => opt(v, l, f.sort)).join('')}</select>
       </div>
-      <div class="row between"><div class="row" style="gap:6px">${chips.map(([k, l]) => `<span class="fchip">${esc(l)}<button data-act="reg-clear" data-v="${k}" aria-label="Hapus filter">×</button></span>`).join('')}<span class="hint">${rs.length} risiko ditampilkan · purwarupa memuat ${S.risks.length} dari ${D.PROFILE.total} risiko</span></div>${chips.length || f.lv || f.unit !== '' || f.cat || f.st ? '<button class="btn sm ghost" data-act="reg-clear" data-v="all">Reset filter</button>' : ''}</div>
+      <div class="row between"><div class="row" style="gap:6px">${chips.map(([k, l]) => `<span class="fchip">${esc(l)}<button data-act="reg-clear" data-v="${k}" aria-label="Hapus filter">×</button></span>`).join('')}<span class="hint">${rs.length} dari ${S.risks.length} risiko</span></div>${chips.length || f.lv || f.unit !== '' || f.cat || f.st ? '<button class="btn sm ghost" data-act="reg-clear" data-v="all">Reset filter</button>' : ''}</div>
     </div>
     <div class="tbl-wrap"><table class="tbl"><thead><tr><th>ID</th><th>Risiko</th><th>Kategori</th><th>Pemilik</th><th class="num">Inheren</th><th>Residual</th><th>Evaluasi</th><th>Perlakuan</th><th>Status</th><th>Tren</th><th>Target</th></tr></thead><tbody>
-      ${rs.length ? rs.map((r) => { const s = sc(r.res), late = r.due < D.TODAY && r.status !== 'Ditutup'; return `<tr class="click" data-go="risk-${r.id}" tabindex="0"><td class="mono">${r.id}</td><td class="wrap"><div class="t-main">${esc(r.name)}</div><div class="t-sub">${esc(unitName(r.unit))} · ${esc(r.proc)}</div></td><td>${esc(r.cat)}</td><td style="white-space:nowrap">${esc(person(r.owner).n)}</td><td class="num">${scoreB(sc(r.inh))}</td><td><span class="row" style="gap:6px;flex-wrap:nowrap">${scoreB(s)}${lvChip(s)}</span></td><td>${evalPill(s, r.cat)}</td><td>${esc(r.treat)}</td><td>${riskStatusPill(r.status)}</td><td>${trendB(r.trend)}</td><td style="white-space:nowrap" class="${late ? '' : 'fg2'}">${late ? `<span class="pill bad">${fmtDate(r.due)}</span>` : fmtDate(r.due)}</td></tr>`; }).join('') : `<tr><td colspan="11"><div class="empty">Tidak ada risiko yang cocok dengan filter. <button class="btn sm" data-act="reg-clear" data-v="all">Reset filter</button></div></td></tr>`}
-    </tbody></table></div></section>`;
+      ${rs.length ? pg.rows.map((r) => { const s = sc(r.res), late = r.due < D.TODAY && r.status !== 'Ditutup'; return `<tr class="click" data-go="risk-${r.id}" tabindex="0"><td class="mono">${r.id}</td><td class="wrap"><div class="t-main">${esc(r.name)}</div><div class="t-sub">${esc(unitName(r.unit))} · ${esc(r.proc)}</div></td><td>${esc(r.cat)}</td><td style="white-space:nowrap">${esc(person(r.owner).n)}</td><td class="num">${scoreB(sc(r.inh))}</td><td><span class="row" style="gap:6px;flex-wrap:nowrap">${scoreB(s)}${lvChip(s)}</span></td><td>${evalPill(s, r.cat)}</td><td>${esc(r.treat)}</td><td>${riskStatusPill(r.status)}</td><td>${trendB(r.trend)}</td><td style="white-space:nowrap" class="${late ? '' : 'fg2'}">${late ? `<span class="pill bad">${fmtDate(r.due)}</span>` : fmtDate(r.due)}</td></tr>`; }).join('') : `<tr><td colspan="11"><div class="empty">Tidak ada risiko yang cocok dengan filter. <button class="btn sm" data-act="reg-clear" data-v="all">Reset filter</button></div></td></tr>`}
+    </tbody></table></div>${pager('reg', pg)}</section>`;
   };
 
   /* --- Detail risiko --- */
@@ -600,23 +621,23 @@
     const c = (k) => all.filter((a) => st(a) === k).length;
     const f = S.treatFilter, acts = f ? all.filter((a) => st(a) === f) : all;
     const cols = [['todo', 'Belum Mulai'], ['run', 'Berjalan'], ['late', 'Terlambat'], ['done', 'Selesai'], ['cancel', 'Dibatalkan']];
+    const pg = paged('act', acts.slice().sort((a, b) => ({ late: 0, run: 1, todo: 2, done: 3, cancel: 4 })[st(a)] - ({ late: 0, run: 1, todo: 2, done: 3, cancel: 4 })[st(b)] || a.due.localeCompare(b.due)));
     const view = S.treatView === 'kanban'
-      ? `<div class="kanban">${cols.map(([k, n]) => `<div class="kcol"><h4>${n}<span class="mono muted">${c(k)}</span></h4>${all.filter((a) => st(a) === k).map((a) => `<div class="kcard"><div class="row between"><span class="mono muted" style="font-size:11px">${a.id} · <a href="#risk-${a.risk}">${a.risk}</a></span><span class="pill ${a.prio === 'Kritis' ? 'bad' : a.prio === 'Tinggi' ? 'warn' : ''}">${a.prio}</span></div><div class="kt">${esc(a.t)}</div>${prog(a.prog, k)}<div class="km"><span>${esc(a.pic)}</span><span>${fmtDate(a.due)}</span></div></div>`).join('') || '<div class="hint" style="padding:6px">Kosong</div>'}</div>`).join('')}</div>`
-      : card('', actTable(acts), { flush: true });
+      ? `<div class="kanban">${cols.map(([k, n]) => `<div class="kcol"><h4>${n}<span class="mono muted">${c(k)}</span></h4>${all.filter((a) => st(a) === k).sort((a, b) => a.due.localeCompare(b.due)).slice(0, 10).map((a) => `<div class="kcard"><div class="row between"><span class="mono muted" style="font-size:11px">${a.id} · <a href="#risk-${a.risk}">${a.risk}</a></span><span class="pill ${a.prio === 'Kritis' ? 'bad' : a.prio === 'Tinggi' ? 'warn' : ''}">${a.prio}</span></div><div class="kt">${esc(a.t)}</div>${prog(a.prog, k)}<div class="km"><span>${esc(a.pic)}</span><span>${fmtDate(a.due)}</span></div></div>`).join('') || '<div class="hint" style="padding:6px">Kosong</div>'}${c(k) > 10 ? `<button type="button" class="btn sm ghost" data-act="tfilter" data-v="${k}">+${c(k) - 10} lainnya →</button>` : ''}</div>`).join('')}</div>`
+      : card('', actTable(pg.rows) + pager('act', pg), { flush: true });
     return `${ph('ISO 31000 · 6.5 Perlakuan Risiko', 'Mitigasi & Action Plan', 'Setiap risiko dapat memiliki beberapa rencana aksi dengan PIC, tenggat, progres, dan bukti pelaksanaan.', `${seg('tview', [['list', 'Tabel'], ['kanban', 'Kanban']], S.treatView)}<button class="btn pri" ${W()} data-act="toast" data-v="Formulir action plan baru (simulasi)">${ic('plus')}Action plan</button>`)}
     <div class="kpis">
       ${[['', 'Semua', all.length, ''], ['run', 'Berjalan', c('run'), 'var(--accent)'], ['late', 'Terlambat', c('late'), 'var(--lv-vh)'], ['todo', 'Belum mulai', c('todo'), 'var(--muted)'], ['done', 'Selesai', c('done'), 'var(--lv-l)']].map(([k, n, v, col]) => `<button type="button" class="kpi" data-act="tfilter" data-v="${k}" style="cursor:pointer;text-align:left;${col ? `border-top:3px solid ${col};` : ''}${f === k ? 'outline:2px solid var(--accent);outline-offset:-1px' : ''}" aria-pressed="${f === k}"><span class="k-l">${n}</span><span class="k-v">${v}</span><span class="k-s">${k === 'late' ? 'notifikasi otomatis ke PIC' : 'klik untuk menyaring'}</span></button>`).join('')}
     </div>
     ${c('late') ? `<div class="ro-banner" style="background:color-mix(in oklab,var(--lv-vh) 12%,var(--surface))"><span style="color:var(--bad-ink)">${ic('alert')}</span><span><b>${c('late')} action plan melewati tenggat.</b> Notifikasi telah dikirim ke PIC dan Risk Owner terkait.</span></div>` : ''}
-    ${view}
-    <p class="hint">Purwarupa memuat ${all.length} dari ${D.MITIG.total} action plan.</p>`;
+    ${view}`;
   };
 
   V.controls = function () {
     const cs = S.controls, eff = cs.filter((c) => Math.min(c.des, c.ope) >= 3).length;
     const sel = S.ctrlSel && cs.find((c) => c.id === S.ctrlSel);
     return `${ph('ISO 31000 · 6.4.3 & 6.6', 'Kontrol & Efektivitas', 'Daftar pengendalian yang sudah berjalan beserta penilaian efektivitas desain dan operasinya. Kontrol menentukan selisih antara risiko inheren dan residual.', `<button class="btn pri" ${W()} data-act="toast" data-v="Formulir kontrol baru (simulasi)">${ic('plus')}Kontrol</button>`)}
-    <div class="kpis">${kpi('Kontrol terdaftar', cs.length, 'purwarupa')}${kpi('Efektif', `${eff}`, `${Math.round((eff / cs.length) * 100)}% dari kontrol`, 'lvl', '--c:var(--lv-l)')}${kpi('Sebagian / tidak efektif', cs.length - eff, 'perlu perbaikan', 'lvl', '--c:var(--lv-h)')}${kpi('Otomatis', cs.filter((c) => c.mode === 'Otomatis').length, `${cs.filter((c) => c.mode === 'Manual').length} manual`)}</div>
+    <div class="kpis">${kpi('Kontrol terdaftar', cs.length, `${S.risks.filter((r) => !r.ctrl.length && r.status !== 'Ditutup').length} risiko belum punya kontrol`)}${kpi('Efektif', `${eff}`, `${Math.round((eff / cs.length) * 100)}% dari kontrol`, 'lvl', '--c:var(--lv-l)')}${kpi('Sebagian / tidak efektif', cs.length - eff, 'perlu perbaikan', 'lvl', '--c:var(--lv-h)')}${kpi('Otomatis', cs.filter((c) => c.mode === 'Otomatis').length, `${cs.filter((c) => c.mode === 'Manual').length} manual`)}</div>
     <div class="grid g-12"><div class="${sel ? 's-8' : 's-12'}">${card('Control register', `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>ID</th><th>Kontrol</th><th>Sifat</th><th>Frekuensi</th><th>Desain</th><th>Operasi</th><th>Keseluruhan</th><th>Risiko</th></tr></thead><tbody>${cs.map((c) => `<tr class="click" data-act="ctrl-open" data-v="${c.id}" style="${sel && sel.id === c.id ? 'background:var(--accent-soft)' : ''}"><td class="mono">${c.id}</td><td class="wrap"><div class="t-main">${esc(c.n)}</div><div class="t-sub">${esc(c.owner)}</div></td><td style="white-space:nowrap">${c.type}<div class="t-sub">${c.mode}</div></td><td>${c.freq}</td><td>${effPill(c.des)}</td><td>${effPill(c.ope)}</td><td>${effPill(Math.min(c.des, c.ope))}</td><td class="mono" style="font-size:12px">${S.risks.filter((r) => r.ctrl.includes(c.id)).map((r) => `<a href="#risk-${r.id}">${r.id}</a>`).join(' ')}</td></tr>`).join('')}</tbody></table></div>`, { flush: true, sub: 'klik baris untuk menilai' })}</div>
     ${sel ? `<div class="s-4">${card(`${sel.id} · Penilaian`, `<div class="stack"><div><b>${esc(sel.n)}</b><p class="hint" style="margin-top:4px">${esc(sel.obj)}</p></div><dl class="kv" style="grid-template-columns:110px minmax(0,1fr)"><dt>Pemilik</dt><dd>${esc(sel.owner)}</dd><dt>Sifat</dt><dd>${sel.type} · ${sel.mode}</dd><dt>Uji terakhir</dt><dd>${fmtDate(sel.last)}</dd></dl>
       <div class="field"><label for="c-des">Efektivitas desain</label><select id="c-des" data-ctrl="des" ${canWrite() ? '' : 'disabled'}>${[1, 2, 3, 4].map((v) => opt(v, D.EFF[v], sel.des)).join('')}</select><span class="hint">Apakah kontrol dirancang tepat untuk menurunkan risiko?</span></div>
@@ -632,7 +653,7 @@
     const tot26 = D.LOSS_HISTORY.filter((l) => l.y === 2026).reduce((s, l) => s + l.loss, 0);
     const byYear = [2024, 2025, 2026].map((y) => [String(y), D.LOSS_HISTORY.filter((l) => l.y === y).reduce((s, l) => s + l.loss, 0)]);
     return `${ph('ISO 31000 · 6.6 & 6.7', 'Insiden & Loss Event', 'Risiko yang benar-benar terjadi dicatat sebagai insiden dan dihubungkan kembali ke risiko, kontrol, dan tindakan korektif. Riwayat kerugian menjadi dasar analisis berikutnya.', `<button class="btn pri" ${W()} data-act="toast" data-v="Formulir laporan insiden (simulasi)">${ic('plus')}Laporkan insiden</button>`)}
-    <div class="kpis">${kpi('Insiden 2026', D.INCIDENTS.length, 'tercatat')}${kpi('Masih terbuka', D.INCIDENTS.filter((i) => i.status !== 'Ditutup').length, 'investigasi / tindakan korektif', 'lvl', '--c:var(--lv-h)')}${kpi('Kerugian 2026', rp(tot26), 'loss event database')}${kpi('Rata-rata pemulihan', '9,5 jam', 'insiden layanan')}</div>
+    <div class="kpis">${kpi('Insiden 2026', D.INCIDENTS.filter((i) => i.date.startsWith('2026')).length, 'tercatat')}${kpi('Masih terbuka', D.INCIDENTS.filter((i) => i.status !== 'Ditutup').length, 'investigasi / tindakan korektif', 'lvl', '--c:var(--lv-h)')}${kpi('Kerugian 2026', rp(tot26), 'loss event database')}${kpi('Rata-rata pemulihan', '9,5 jam', 'insiden layanan')}</div>
     <div class="grid g-12">
       <div class="s-5">${card('Daftar insiden', `<div class="rlist">${D.INCIDENTS.map((i) => `<button type="button" class="ritem" data-act="inc-open" data-v="${i.id}" style="border-left:0;border-right:0;border-bottom:0;background:${i.id === inc.id ? 'var(--accent-soft)' : 'transparent'};text-align:left;font:inherit;width:100%;grid-template-columns:minmax(0,1fr) auto"><div style="min-width:0"><div class="rn">${esc(i.t)}</div><div class="rs"><span class="mono">${i.id}</span> · ${fmtDate(i.date)} · ${rp(i.loss)}</div></div>${incPill(i.status)}</button>`).join('')}</div>`, { flush: true })}</div>
       <div class="s-7">${card(`<span class="mono">${inc.id}</span>`, `<div class="stack"><h3 style="font-size:18px">${esc(inc.t)}</h3>
@@ -644,7 +665,7 @@
         </div>
         <dl class="kv"><dt>Kronologi</dt><dd>${esc(inc.chrono)}</dd><dt>Penyebab</dt><dd>${esc(inc.cause)}</dd><dt>Dampak</dt><dd>${esc(inc.impact)}</dd><dt>Kerugian</dt><dd><b>${rp(inc.loss)}</b></dd><dt>Respons</dt><dd>${esc(inc.response)}</dd><dt>Status</dt><dd>${incPill(inc.status)}</dd></dl></div>`)}</div>
       <div class="s-7">${card('Loss event database', `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Tahun</th><th>Risiko</th><th>Kejadian</th><th class="num">Kerugian</th></tr></thead><tbody>${D.LOSS_HISTORY.map((l) => `<tr><td class="mono">${l.y}</td><td>${esc(l.risk)}</td><td class="fg2">${esc(l.ev)}</td><td class="num">${rp(l.loss)}</td></tr>`).join('')}</tbody></table></div>`, { flush: true })}</div>
-      <div class="s-5">${card('Kerugian per tahun', barList(byYear, { unit: 'juta rupiah', max: 220 }) + '<p class="hint" style="margin-top:10px">Dalam juta rupiah. Data historis menjadi masukan penilaian kemungkinan & dampak.</p>')}</div>
+      <div class="s-5">${card('Kerugian per tahun', barList(byYear, { unit: 'juta rupiah' }) + '<p class="hint" style="margin-top:10px">Dalam juta rupiah. Data historis menjadi masukan penilaian kemungkinan & dampak.</p>')}</div>
     </div>`;
   };
 
@@ -653,7 +674,7 @@
     const tr = (a, b) => (b < a ? ['down', 'Membaik'] : b > a ? ['up', 'Memburuk'] : ['flat', 'Stabil']);
     const cnt = (k) => rows.filter((x) => tr(x.v.prev, x.v.cur)[0] === k).length;
     return `${ph('ISO 31000 · 6.6 Pemantauan & Reviu', 'Risk Review', 'Reviu berkala membandingkan posisi risiko periode sebelumnya dengan kondisi terkini.', `<select class="sel" id="rev-per" aria-label="Periode reviu">${['TW III 2026', 'TW II 2026', 'Semester I 2026', 'Tahunan 2025'].map((p) => opt(p, `Reviu ${p}`, S.revPeriod)).join('')}</select><button class="btn pri" ${W()} data-act="toast" data-v="Berita acara reviu disusun (simulasi)">Susun berita acara</button>`)}
-    <div class="kpis">${kpi('Risiko direviu', rows.length, 'dari 31 risiko prioritas')}${kpi('<span class="trend down">▼</span>Membaik', cnt('down'), '')}${kpi('<span class="trend flat">▶</span>Stabil', cnt('flat'), '')}${kpi('<span class="trend up">▲</span>Memburuk', cnt('up'), 'perlu keputusan manajemen')}</div>
+    <div class="kpis">${kpi('Risiko direviu', rows.length, `${S.risks.filter((r) => r.status !== 'Ditutup').length} risiko aktif`)}${kpi('<span class="trend down">▼</span>Membaik', cnt('down'), '')}${kpi('<span class="trend flat">▶</span>Stabil', cnt('flat'), '')}${kpi('<span class="trend up">▲</span>Memburuk', cnt('up'), 'perlu keputusan manajemen')}</div>
     <div class="grid g-12"><div class="s-8">${card('Hasil reviu', `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Risiko</th><th>Sebelumnya (TW II)</th><th>Saat ini (TW III)</th><th>Tren</th><th>Catatan reviu</th></tr></thead><tbody>${rows.map(({ v, r }) => { const t = tr(v.prev, v.cur); return `<tr class="click" data-go="risk-${r.id}"><td><div class="t-main">${esc(r.name)}</div><div class="t-sub mono">${r.id}</div></td><td>${lvChip(v.prev)}</td><td>${lvChip(v.cur)}</td><td><span class="trend ${t[0]}">${{ up: '▲', down: '▼', flat: '▶' }[t[0]]} ${t[1]}</span></td><td class="fg2" style="min-width:240px">${esc(v.note)}</td></tr>`; }).join('')}</tbody></table></div>`, { flush: true })}</div>
     <div class="s-4">${card('Jadwal reviu', `<div class="wf">${[['Monthly Risk Review', 'Setiap Senin pertama · Risk Officer', 'done', '6 Okt 2026'], ['Quarterly Risk Review', 'Komite Manajemen Risiko', 'cur', '15 Okt 2026'], ['Semester Review', 'Pimpinan & Eselon I', '', 'Jan 2027'], ['Annual Risk Assessment', 'Seluruh unit kerja', '', 'Des 2026']].map(([a, b, c, d], i) => `<div class="wf-s ${c}"><span class="wf-dot">${c === 'done' ? '✓' : i + 1}</span><div><div class="wt">${a}</div><div class="wm">${b} · ${d}</div></div></div>`).join('')}</div>`)}</div></div>`;
   };
@@ -677,7 +698,7 @@
     return `${ph('ISO 31000 · 5.3 Integrasi', 'Pemetaan Sasaran Strategis', 'Setiap risiko ditelusuri sampai sasaran organisasi, sehingga manajemen risiko terhubung langsung dengan kinerja.', '')}
     <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px">${D.OBJECTIVES.map((x) => `<button type="button" class="kpi" data-act="obj" data-v="${x.id}" style="cursor:pointer;text-align:left;${x.id === o.id ? 'outline:2px solid var(--accent);outline-offset:-1px;background:var(--accent-soft)' : ''}" aria-pressed="${x.id === o.id}"><span class="k-l mono">${x.id}</span><span style="font-weight:600;font-size:14px;line-height:1.35">${esc(x.n)}</span><span class="k-s">IKU: ${esc(x.ik)} · ${x.cnt} risiko</span></button>`).join('')}</div>
     ${card('Rantai keterkaitan', `<div class="chain"><div class="cnode"><div class="cl">Sasaran</div><div class="cv">${esc(o.n)}</div><div class="cs">${esc(o.ik)}</div></div>${ch.map(([l, v, s2, rid, gap]) => `<div class="cnode" style="${gap ? 'background:color-mix(in oklab,var(--lv-vh) 10%,var(--surface))' : ''}"><div class="cl" style="${gap ? 'color:var(--bad-ink)' : ''}">${l}</div><div class="cv">${rid ? `<a href="#risk-${rid}">${esc(v)}</a>` : esc(v)}</div><div class="cs">${esc(s2)}</div></div>`).join('')}</div>`, { sub: 'Sasaran → Program → Proses → Risiko → Kontrol → KRI' })}
-    ${card('Cakupan per sasaran', `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Sasaran</th><th class="num">Risiko</th><th class="num">Sangat Tinggi</th><th class="num">Tinggi</th><th>Cakupan kontrol</th><th class="num">KRI</th></tr></thead><tbody>${D.OBJECTIVES.map((x, i) => { const cov = [86, 92, 71, 48][i]; return `<tr class="click" data-act="obj" data-v="${x.id}"><td><span class="mono muted">${x.id}</span> ${esc(x.n)}</td><td class="num">${x.cnt}</td><td class="num">${[1, 0, 5, 2][i]}</td><td class="num">${[7, 4, 9, 3][i]}</td><td>${prog(cov, cov < 60 ? 'late' : '')}</td><td class="num">${[3, 2, 3, 1][i]}</td></tr>`; }).join('')}</tbody></table></div>`, { flush: true })}`;
+    ${card('Cakupan per sasaran', `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Sasaran</th><th class="num">Risiko</th><th class="num">Sangat Tinggi</th><th class="num">Tinggi</th><th>Cakupan kontrol</th><th class="num">KRI</th></tr></thead><tbody>${D.OBJECTIVES.map((x) => { const cov = x.cov; return `<tr class="click" data-act="obj" data-v="${x.id}"><td><span class="mono muted">${x.id}</span> ${esc(x.n)}</td><td class="num">${x.cnt}</td><td class="num">${x.vh}</td><td class="num">${x.h}</td><td>${prog(cov, cov < 75 ? 'late' : '')}</td><td class="num">${x.kri}</td></tr>`; }).join('')}</tbody></table></div>`, { flush: true })}`;
   };
 
   V.governance = function () {
@@ -718,20 +739,22 @@
     const fmts = ['PDF', 'Excel', 'Word'];
     const rep = S.report;
     let gen = '';
+    const sx = stats(), P = D.PROFILE, prevAvg = D.AVG_TREND.values[D.AVG_TREND.values.length - 4];
     if (S.reportBusy) gen = `<div class="doc"><div class="typing" aria-label="Menyusun laporan"><i></i><i></i><i></i></div><p class="hint" style="margin-top:8px">AI menyusun laporan dari risk register, KRI, insiden, dan action plan…</p></div>`;
     else if (rep) gen = `<article class="doc"><div class="eyebrow">Laporan Eksekutif Manajemen Risiko</div><h2 style="margin-top:6px">Executive Risk Report ${esc(rep)}</h2><div class="meta">${esc(D.ORG.name)} · disusun otomatis 5 Okt 2026 · draf untuk ditinjau Risk Manager</div>
-      <h4>1. Ringkasan eksekutif</h4><p>Profil risiko organisasi membaik dibanding triwulan sebelumnya. Jumlah risiko Sangat Tinggi turun dari 10 menjadi 8 dan skor residual rata-rata turun dari 9,6 menjadi 9,1. Perbaikan terbesar terjadi pada risiko keuangan dan pelayanan. Sebaliknya, eksposur keamanan siber dan SDM meningkat.</p>
+      <h4>1. Ringkasan eksekutif</h4><p>Organisasi mengelola ${sx.total} risiko aktif dan historis. Profil risiko membaik dibanding triwulan sebelumnya: jumlah risiko Sangat Tinggi turun dari ${D.QUARTERS[2].vh} menjadi ${sx.vh} dan skor residual rata-rata turun dari ${fmtNum(prevAvg, 1)} menjadi ${fmtNum(sx.avg, 1)}. Perbaikan terbesar terjadi pada risiko keuangan dan kepatuhan. Sebaliknya, eksposur keamanan siber, SDM, dan kapasitas layanan perizinan meningkat.</p>
       <h4>2. Top risiko</h4><ul>${S.risks.slice().sort((a, b) => sc(b.res) - sc(a.res)).slice(0, 5).map((r) => `<li><b>${r.id} ${esc(r.name)}</b> · residual ${sc(r.res)} (${level(sc(r.res)).n}), ${esc(unitName(r.unit))}</li>`).join('')}</ul>
-      <h4>3. Tren risiko</h4><p>12 risiko meningkat, 83 stabil, 32 menurun. Ransomware (R-002) dan kekurangan SDM siber (R-009) naik ke level Sangat Tinggi.</p>
-      <h4>4. Progres mitigasi</h4><p>Realisasi mitigasi 78% dari 214 action plan; 112 selesai dan 17 terlambat. Keterlambatan terkonsentrasi pada uji keamanan (A-005), strategi multi-cloud (A-009), dan rekrutmen SDM siber (A-014).</p>
-      <h4>5. KRI & insiden</h4><p>2 KRI berstatus Kritis (downtime 3,4 jam; 6 posisi kunci tanpa pengganti). Lima insiden tercatat pada 2026 dengan total kerugian Rp205 jt. Insiden terbesar adalah kegagalan pendingin pusat data senilai Rp75 jt.</p>
-      <h4>6. Rekomendasi</h4><ul><li>Percepat pengadaan redundansi pusat data (A-002) dan jadwalkan DR Test sebelum akhir November.</li><li>Tetapkan formasi khusus jabatan fungsional keamanan siber melalui koordinasi dengan KemenPAN-RB.</li><li>Setujui exit plan penyedia cloud sebagai prasyarat perpanjangan kontrak 2027.</li><li>Tetapkan Pejabat Pelindungan Data Pribadi sebelum 15 Oktober 2026.</li></ul>
+      <h4>3. Tren risiko</h4><p>${P.up} risiko meningkat, ${P.flat} stabil, ${P.down} menurun. Risiko yang naik ke level Sangat Tinggi: ${sx.up.filter((r) => sc(r.res) >= 16).map((r) => `${r.id} ${esc(r.name)}`).join('; ')}.</p>
+      <h4>4. Progres mitigasi</h4><p>Realisasi mitigasi ${sx.mitig}% dari ${sx.acts} action plan; ${sx.done} selesai dan ${sx.late.length} terlambat. Keterlambatan antara lain pada ${sx.late.slice(0, 4).map((a) => `${esc(a.t.toLowerCase())} (${a.id})`).join(', ')}.</p>
+      <h4>5. KRI & insiden</h4><p>${sx.krit.length} KRI berstatus Kritis: ${sx.krit.map((k) => `${esc(k.n.toLowerCase())} ${kriVal(k, k.v[k.v.length - 1])} ${esc(k.u)}`).join('; ')}. ${sx.inc.length} insiden tercatat pada 2026 dengan total kerugian ${rp(sx.loss)}. Kerugian terbesar berasal dari “${esc(sx.big.t)}” senilai ${rp(sx.big.loss)}.</p>
+      <h4>6. Rekomendasi</h4><ul><li>Percepat pengadaan redundansi pusat data (A-002) dan jadwalkan DR Test sebelum akhir November.</li><li>Tetapkan formasi khusus jabatan fungsional keamanan siber melalui koordinasi dengan KemenPAN-RB.</li><li>Tambah kapasitas verifikator dan terapkan pra-verifikasi otomatis untuk menurunkan backlog permohonan di bawah 3.000 berkas.</li><li>Setujui exit plan penyedia cloud sebagai prasyarat perpanjangan kontrak 2027.</li><li>Tetapkan Pejabat Pelindungan Data Pribadi sebelum 15 Oktober 2026.</li></ul>
       <div class="row" style="margin-top:20px">${fmts.map((f) => `<button class="btn sm" data-act="toast" data-v="Laporan eksekutif diekspor ke ${f} (simulasi)">${ic('down')}${f}</button>`).join('')}</div></article>`;
     return `${ph('ISO 31000 · 6.7 Pencatatan & Pelaporan', 'Laporan', 'Laporan baku dapat diekspor ke PDF, Excel, atau Word. Laporan eksekutif dapat disusun AI hanya dengan memilih periode.', '')}
     <section class="callout" style="flex-wrap:wrap"><span class="ai-ic">${ic('spark')}</span><div style="flex:1;min-width:220px"><p><b>AI Generate Risk Report</b></p><small>Pilih periode, lalu AI menyusun ringkasan eksekutif, top risk, tren, progres mitigasi, KRI, insiden, aksi terlambat, dan rekomendasi.</small></div>
       <div class="row"><select class="sel" id="rep-per" aria-label="Periode laporan" style="background-color:#12343b;color:#e8f2f3;border-color:#2e5a64">${['TW III 2026', 'TW II 2026', 'Semester I 2026', 'Tahun 2025'].map((p) => opt(p, p, S.reportPeriod)).join('')}</select><button class="btn" style="background:#e8f2f3;color:#0e2a31;border-color:#e8f2f3" data-act="gen-report">${ic('spark')}Buat laporan</button></div></section>
     ${gen}
-    <div class="rep-grid">${CAT.map(([a, b]) => `<div class="rep"><h4>${a}</h4><p>${b}</p><div class="fmt">${fmts.map((f) => `<button class="btn sm" data-act="toast" data-v="${a} diekspor ke ${f} (simulasi)">${f}</button>`).join('')}</div></div>`).join('')}</div>`;
+    <div class="rep-grid">${CAT.map(([a, b]) => `<div class="rep"><h4>${a}</h4><p>${b}</p><div class="fmt">${fmts.map((f) => `<button class="btn sm" data-act="toast" data-v="${a} diekspor ke ${f} (simulasi)">${f}</button>`).join('')}</div></div>`).join('')}</div>
+    ${card('Riwayat laporan', `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Laporan</th><th>Format</th><th>Dibuat oleh</th><th>Waktu</th><th>Keterangan</th><th></th></tr></thead><tbody>${D.REPORT_LOG.map((l) => `<tr><td class="t-main">${ic('file')} ${esc(l.n)}</td><td><span class="pill">${l.f}</span></td><td>${esc(l.by)}</td><td class="mono" style="white-space:nowrap">${fmtDate(l.t.slice(0, 10))}, ${l.t.slice(11)}</td><td class="fg2">${esc(l.note)}</td><td><button class="btn sm ghost" data-act="toast" data-v="Mengunduh ${esc(l.n)} (simulasi)" aria-label="Unduh">${ic('down')}</button></td></tr>`).join('')}</tbody></table></div>`, { flush: true, sub: `${D.REPORT_LOG.length} laporan terakhir` })}`;
   };
 
   V.documents = function () {
@@ -759,9 +782,9 @@
 
   V.audit = function () {
     const q = S.auditQ.toLowerCase();
-    const rows = S.audit.filter((a) => !q || `${a.u} ${a.a} ${a.ref} ${a.f} ${a.p} ${a.n}`.toLowerCase().includes(q));
+    const rows = S.audit.filter((a) => !q || `${a.u} ${a.a} ${a.ref} ${a.f} ${a.p} ${a.n}`.toLowerCase().includes(q)), pg = paged('audit', rows);
     return `${ph('Governance · Akuntabilitas', 'Audit Trail', 'Seluruh aktivitas pengguna tercatat beserta nilai sebelum dan sesudah perubahan, untuk kebutuhan audit dan tata kelola.', `<button class="btn" data-act="toast" data-v="Audit trail diekspor ke Excel (simulasi)">${ic('down')}Ekspor</button>`)}
-    <section class="card"><div class="card-b"><div class="fbar"><input class="inp" type="search" id="audit-q" data-auditq placeholder="Cari pengguna, aktivitas, objek…" value="${esc(S.auditQ)}" aria-label="Cari audit trail"><span class="hint">${rows.length} entri</span></div></div>${auditTable(rows)}</section>`;
+    <section class="card"><div class="card-b"><div class="fbar"><input class="inp" type="search" id="audit-q" data-auditq placeholder="Cari pengguna, aktivitas, objek…" value="${esc(S.auditQ)}" aria-label="Cari audit trail"><span class="hint">${rows.length} entri</span></div></div>${auditTable(pg.rows)}${pager('audit', pg)}</section>`;
   };
 
   /* --- AI Assistant --- */
@@ -775,7 +798,7 @@
     if (/statement|pernyataan/.test(s)) return `<span class="ai-tag">Risk statement generator</span><p>Karena <b>jalur jaringan kantor wilayah hanya mengandalkan satu penyedia tanpa jalur cadangan</b>, dapat terjadi <b>gangguan koneksi lebih dari 4 jam</b>, sehingga menyebabkan <b>pelayanan tatap muka beralih ke proses manual dan antrean meningkat</b>.</p><p style="margin-top:8px" class="muted">Kategori disarankan: Pihak Ketiga · Kemungkinan 3 · Dampak 3 · Skor 9 (Sedang).</p>`;
     if (/mitigasi|rekomendasi|ransomware/.test(s)) return `<span class="ai-tag">Treatment recommendation · R-002</span>Opsi perlakuan: <b>Kurangi</b>. Rekomendasi berdasarkan kontrol yang ada:<ol><li>Backup immutable/offline untuk basis data inti (mengurangi dampak 4 → 3).</li><li>Patch management terpusat dengan SLA patch kritikal 7 hari (mengurangi kemungkinan).</li><li>Segmentasi jaringan antara server aplikasi dan basis data.</li><li>MFA untuk seluruh akses administratif.</li><li>Simulasi phishing triwulanan.</li></ol><p style="margin-top:8px">Proyeksi residual: <b>16 → 9</b> (Sedang).</p>`;
     if (/analisis|perubahan|tren/.test(s)) return `<span class="ai-tag">Risk analysis</span><p>Dibanding TW II, 12 risiko meningkat. Kenaikan terbesar:</p><ul><li><b>R-002 Ransomware</b> 12 → 16. Pemicu: insiden keamanan naik 2 bulan berturut-turut (K-02) dan 12% server dengan patch tertunda.</li><li><b>R-009 Kekurangan SDM siber</b> 12 → 16. Pemicu: 2 personel mengundurkan diri dan rekrutmen A-014 terlambat.</li></ul><p style="margin-top:8px">Kedua risiko saling terkait: kekurangan personel memperlambat patching.</p>`;
-    if (/ringkas|pimpinan|summary|profil/.test(s)) return `<span class="ai-tag">Risk summary</span><p>Terdapat <b>8 risiko Sangat Tinggi</b> yang membutuhkan perhatian manajemen dari total 127 risiko. Profil membaik: skor rata-rata turun ke 9,1. Realisasi mitigasi 78%, namun 17 action plan terlambat. Tiga keputusan diperlukan bulan ini: redundansi pusat data, formasi SDM siber, dan exit plan penyedia cloud.</p>`;
+    if (/ringkas|pimpinan|summary|profil/.test(s)) { const st = stats(); return `<span class="ai-tag">Risk summary</span><p>Terdapat <b>${st.vh} risiko Sangat Tinggi</b> yang membutuhkan perhatian manajemen dari total ${st.total} risiko; ${st.topUnitN} di antaranya di ${esc(st.topUnit)}. Profil membaik: skor residual rata-rata turun ke ${fmtNum(st.avg, 1)}. Realisasi mitigasi ${st.mitig}%, namun ${st.late.length} action plan terlambat. Tiga keputusan diperlukan bulan ini: redundansi pusat data, penambahan verifikator layanan perizinan, dan formasi SDM siber.</p>`; }
     return `<span class="ai-tag">AI Risk Assistant</span><p>Saya dapat membantu identifikasi risiko, menyusun risk statement, merekomendasikan mitigasi, menganalisis perubahan risiko, dan meringkas profil risiko. Coba salah satu contoh pertanyaan di samping.</p>`;
   }
   V.ai = function () {
@@ -792,9 +815,9 @@
   NAV.forEach((g) => g.items.forEach(([id, t]) => (TITLES[id] = t)));
 
   function renderSide(cur) {
-    const pend = S.approvals.filter((a) => a.st === 'Proses').length;
+    const pend = S.approvals.filter((a) => a.st === 'Proses').length, kritN = D.KRIS.filter((k) => kriStatus(k).n === 'Kritis').length;
     $('#side').innerHTML = `<div class="brand"><span class="brand-mark" aria-hidden="true">${['l', 'm', 'h', 'm', 'h', 'vh', 'h', 'vh', 'vh'].map((k) => `<i style="background:var(--lv-${k})"></i>`).join('')}</span><span><b>ManRisk</b><small>ERM · ISO 31000:2018</small></span></div>
-    <nav class="nav">${NAV.map((g) => { const its = g.items.filter((i) => allowed(i[0])); if (!its.length) return ''; return `<div class="nav-g"><span>${g.g}</span>${its.map(([id, t, i]) => `<a href="#${id}" class="${cur === id || (cur === 'risk' && id === 'register') ? 'on' : ''}" ${cur === id ? 'aria-current="page"' : ''}>${ic(i)}${t}${id === 'workflow' && pend ? `<span class="cnt">${pend}</span>` : ''}${id === 'kri' ? '<span class="cnt">2</span>' : ''}</a>`).join('')}</div>`; }).join('')}</nav>
+    <nav class="nav">${NAV.map((g) => { const its = g.items.filter((i) => allowed(i[0])); if (!its.length) return ''; return `<div class="nav-g"><span>${g.g}</span>${its.map(([id, t, i]) => `<a href="#${id}" class="${cur === id || (cur === 'risk' && id === 'register') ? 'on' : ''}" ${cur === id ? 'aria-current="page"' : ''}>${ic(i)}${t}${id === 'workflow' && pend ? `<span class="cnt">${pend}</span>` : ''}${id === 'kri' && kritN ? `<span class="cnt">${kritN}</span>` : ''}</a>`).join('')}</div>`; }).join('')}</nav>
     <div class="side-foot">Purwarupa UI/UX · data contoh fiktif<br>${esc(D.ORG.name)}</div>`;
   }
   function renderTop() {
@@ -846,6 +869,7 @@
 
   const ACT = {
     toast: (el) => toast(el.dataset.v),
+    page: (el) => { const [k, p] = el.dataset.v.split(':'); S.pg[k] = +p; render(true); const v = $('#view'); if (v) v.querySelector('.tbl-wrap') && v.querySelector('.tbl-wrap').scrollIntoView({ block: 'nearest' }); },
     nav: () => { S.nav = !S.nav; renderOverlay(); },
     notif: () => { S.overlay = 'notif'; renderOverlay(); },
     'close-ov': () => { S.overlay = null; renderOverlay(); },
@@ -855,13 +879,13 @@
       try { localStorage.setItem('manrisk-theme', r.getAttribute('data-theme')); } catch (e) { /* abaikan */ }
     },
     heat: (el) => { S.heat = el.dataset.v; S.reg.cell = ''; render(true); },
-    hmcell: (el) => { S.reg = Object.assign({}, S.reg, { cell: el.dataset.v, q: '', lv: '', unit: '', cat: '', st: '' }); location.hash = 'register'; },
-    'reg-clear': (el) => { const k = el.dataset.v; if (k === 'all') S.reg = { q: '', lv: '', unit: '', cat: '', st: '', cell: '', sort: S.reg.sort }; else S.reg[k] = ''; render(true); },
+    hmcell: (el) => { S.reg = Object.assign({}, S.reg, { cell: el.dataset.v, q: '', lv: '', unit: '', cat: '', st: '' }); S.pg.reg = 1; location.hash = 'register'; },
+    'reg-clear': (el) => { S.pg.reg = 1; const k = el.dataset.v; if (k === 'all') S.reg = { q: '', lv: '', unit: '', cat: '', st: '', cell: '', sort: S.reg.sort }; else S.reg[k] = ''; render(true); },
     dtab: (el) => { S.dtab = el.dataset.v; render(true); },
     ctx: (el) => { S.ctxTab = el.dataset.v; render(true); },
     orgtab: (el) => { S.orgTab = el.dataset.v; render(true); },
     tview: (el) => { S.treatView = el.dataset.v; render(true); },
-    tfilter: (el) => { S.treatFilter = el.dataset.v; if (S.treatView === 'kanban' && el.dataset.v) S.treatView = 'list'; render(true); },
+    tfilter: (el) => { S.treatFilter = el.dataset.v; S.pg.act = 1; if (S.treatView === 'kanban' && el.dataset.v) S.treatView = 'list'; render(true); },
     obj: (el) => { S.objSel = el.dataset.v; if (route().id === 'objective') render(true); },
     'inc-open': (el) => { S.incSel = el.dataset.v; if (route().id !== 'incidents') location.hash = 'incidents'; else render(true); },
     'ctrl-open': (el) => { S.ctrlSel = el.dataset.v; render(true); },
@@ -939,7 +963,7 @@
     if (t.matches('[data-rolesel]')) { S.role = t.value; S.ctrlSel = null; toast(`Masuk sebagai ${S.role}${canWrite() ? '' : ' (baca saja)'}`); render(); }
     if (t.matches('[data-orgsel]') && t.value !== 'bldn') { toast('Purwarupa hanya memuat data BLDN. Tenant lain ditampilkan sebagai contoh multi-organisasi.'); t.value = 'bldn'; }
     if (t.matches('#per-sel') && t.value !== 'TW III 2026') { toast(`Periode ${t.value}: purwarupa menampilkan data TW III 2026`); t.value = 'TW III 2026'; }
-    if (t.matches('select[data-reg]')) { S.reg[t.dataset.reg] = t.value; render(true); }
+    if (t.matches('select[data-reg]')) { S.reg[t.dataset.reg] = t.value; S.pg.reg = 1; render(true); }
     if (t.matches('[data-anacat]')) { S.anaCat = t.value; render(true); }
     if (t.matches('select[data-wz]')) { S.wz.d[t.dataset.wz] = t.dataset.wz === 'unit' ? +t.value : t.value; S.wz.example = false; }
     if (t.matches('#rep-per')) S.reportPeriod = t.value;
@@ -958,13 +982,13 @@
       const live = $('[data-live="stmt"]'); if (live) live.innerHTML = stmtHTML(S.wz.d);
     }
     if (t.matches('[data-wza]')) { const [i, k] = t.dataset.wza.split(':'); S.wz.d.actions[+i][k] = t.value; }
-    if (t.matches('#reg-q')) { S.reg.q = t.value; clearTimeout(t._t); t._t = setTimeout(() => { render(true); const el = $('#reg-q'); if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); } }, 250); }
-    if (t.matches('[data-auditq]')) { S.auditQ = t.value; clearTimeout(t._t); t._t = setTimeout(() => { render(true); const el = $('#audit-q'); if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); } }, 250); }
+    if (t.matches('#reg-q')) { S.reg.q = t.value; S.pg.reg = 1; clearTimeout(t._t); t._t = setTimeout(() => { render(true); const el = $('#reg-q'); if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); } }, 250); }
+    if (t.matches('[data-auditq]')) { S.auditQ = t.value; S.pg.audit = 1; clearTimeout(t._t); t._t = setTimeout(() => { render(true); const el = $('#audit-q'); if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); } }, 250); }
   });
   document.addEventListener('submit', (e) => {
     e.preventDefault();
     const f = e.target.dataset.form;
-    if (f === 'search') { const q = $('#gq').value.trim(); S.reg = { q, lv: '', unit: '', cat: '', st: '', cell: '', sort: 'res' }; if (allowed('register')) location.hash = 'register'; if (route().id === 'register') render(true); }
+    if (f === 'search') { const q = $('#gq').value.trim(); S.reg = { q, lv: '', unit: '', cat: '', st: '', cell: '', sort: 'res' }; S.pg.reg = 1; if (allowed('register')) location.hash = 'register'; if (route().id === 'register') render(true); }
     if (f === 'ai') { const i = $('#ai-in'); const q = i.value.trim(); i.value = ''; askAI(q); }
   });
 
