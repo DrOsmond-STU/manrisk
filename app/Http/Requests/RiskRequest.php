@@ -8,9 +8,11 @@ use Illuminate\Validation\Rule;
 
 class RiskRequest extends FormRequest
 {
+    /** Otorisasi dijalankan sebelum validasi agar pihak tanpa hak tidak menerima pesan validasi. */
     public function authorize(): bool
     {
-        return true; // otorisasi di controller lewat Policy
+        $risk = $this->route('risk');
+        return $risk ? $this->user()->can('update', $risk) : $this->user()->can('create', \App\Models\Risk::class);
     }
 
     public function rules(): array

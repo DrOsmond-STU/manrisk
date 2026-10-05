@@ -67,7 +67,7 @@ class ReportController extends Controller
             'unit_id' => ['nullable', 'integer'],
         ]);
         abort_unless(in_array($data['format'], ReportService::FORMATS[$data['type']], true), 422);
-        \App\Models\ReportSchedule::create($data + ['user_id' => $request->user()->id, 'active' => true, 'params' => array_filter(['unit_id' => $data['unit_id'] ?? null])]);
+        \App\Models\ReportSchedule::create(collect($data)->except('unit_id')->all() + ['user_id' => $request->user()->id, 'active' => true, 'params' => array_filter(['unit_id' => $data['unit_id'] ?? null])]);
         return $this->ok('Jadwal laporan disimpan.');
     }
 

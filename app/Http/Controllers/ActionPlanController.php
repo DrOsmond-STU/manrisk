@@ -111,8 +111,8 @@ class ActionPlanController extends Controller
     public function verify(Request $request, ActionPlan $plan)
     {
         $user = $request->user();
-        abort_unless($plan->progress >= 100 && !$plan->verified_at, 422, 'Action plan belum selesai atau sudah diverifikasi.');
         abort_unless($user->can('update', $plan) && ($user->id === $plan->risk?->owner_id || $user->hasRole('super_admin', 'risk_admin', 'risk_manager')), 403);
+        abort_unless($plan->progress >= 100 && !$plan->verified_at, 422, 'Action plan belum selesai atau sudah diverifikasi.');
         $data = $request->validate(['action' => ['required', Rule::in(['approve', 'reject'])], 'note' => ['nullable', 'string', 'max:1000', 'required_if:action,reject']]);
         if ($data['action'] === 'reject') {
             ActionProgress::create(['action_plan_id' => $plan->id, 'user_id' => $user->id, 'from_pct' => 100, 'to_pct' => 90, 'note' => 'Verifikasi ditolak: ' . $data['note']]);

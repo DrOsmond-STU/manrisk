@@ -1,5 +1,5 @@
 <script setup>
-import { reactive, ref, watch } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 import { Head, router } from '@inertiajs/vue3';
 import PageHead from '../../Components/PageHead.vue';
 import Field from '../../Components/Field.vue';
@@ -9,11 +9,12 @@ const props = defineProps({ logs: Object, filters: Object, actions: Array, subje
 const tab = ref('audit');
 const f = reactive({ q: props.filters.q || '', action: props.filters.action || '', subject: props.filters.subject || '', user_id: props.filters.user_id || '', from: props.filters.from || '', to: props.filters.to || '' });
 let t; watch(f, () => { clearTimeout(t); t = setTimeout(() => router.get('/admin/audit', Object.fromEntries(Object.entries(f).filter(([, v]) => v)), { preserveState: true, replace: true }), 350); });
+const csvUrl = computed(() => `/admin/audit/export?${new URLSearchParams(Object.fromEntries(Object.entries({ action: f.action, user_id: f.user_id, from: f.from, to: f.to }).filter(([, v]) => v)))}`);
 const show = (v) => (v === null || v === undefined ? '∅' : typeof v === 'object' ? JSON.stringify(v) : String(v));
 </script>
 <template>
   <Head title="Audit trail" />
-  <PageHead kicker="Administrasi" title="Audit trail & log autentikasi" sub="Jejak setiap pembuatan, perubahan (nilai lama → baru), penghapusan, persetujuan, unduhan, dan ekspor. Catatan hanya dapat ditambah, tidak dapat diubah atau dihapus."><a :href="`/admin/audit/export?${new URLSearchParams(Object.fromEntries(Object.entries({ action: f.action, user_id: f.user_id, from: f.from, to: f.to }).filter(([, v]) => v)))}`" class="btn c-green"><Icon name="file" />Ekspor CSV</a></PageHead>
+  <PageHead kicker="Administrasi" title="Audit trail & log autentikasi" sub="Jejak setiap pembuatan, perubahan (nilai lama → baru), penghapusan, persetujuan, unduhan, dan ekspor. Catatan hanya dapat ditambah, tidak dapat diubah atau dihapus."><a :href="csvUrl" class="btn c-green"><Icon name="file" />Ekspor CSV</a></PageHead>
   <div class="tabs"><button type="button" :class="{ on: tab === 'audit' }" @click="tab = 'audit'">Audit trail<span class="c">{{ logs.total }}</span></button><button v-if="auth_logs.length" type="button" :class="{ on: tab === 'auth' }" @click="tab = 'auth'">Autentikasi<span class="c">{{ auth_logs.length }}</span></button></div>
   <div v-if="tab === 'audit'" class="card"><div class="card-b filters"><Field v-model="f.q" label="Cari" placeholder="label / konteks" style="flex:1" /><Field v-model="f.action" type="select" label="Aksi" :options="actions" empty="Semua" /><Field v-model="f.subject" type="select" label="Objek" :options="subjects" empty="Semua" /><Field v-model="f.user_id" type="select" label="Pengguna" :options="users" empty="Semua" /><Field v-model="f.from" type="date" label="Dari" /><Field v-model="f.to" type="date" label="Sampai" /></div>
     <div class="card-b flush tbl-wrap"><table class="tbl"><thead><tr><th>Waktu</th><th>Pengguna</th><th>Aksi</th><th>Objek</th><th>Perubahan</th><th>Konteks / IP</th></tr></thead><tbody>

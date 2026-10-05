@@ -188,7 +188,7 @@ class NewFeaturesTest extends TestCase
     {
         \Illuminate\Support\Facades\Mail::fake();
         $this->makeRisk();
-        $this->as('risk_manager')->post('/reports/schedules', ['type' => 'kri', 'format' => 'pdf', 'frequency' => 'monthly', 'day' => now()->day > 28 ? 28 : now()->day, 'recipients' => ['direksi@uji.test']])->assertSessionHas('success');
+        $this->as('risk_manager')->post('/reports/schedules', ['type' => 'kri', 'format' => 'pdf', 'frequency' => 'monthly', 'day' => now()->day > 28 ? 28 : now()->day, 'recipients' => ['direksi@uji.test'], 'unit_id' => null])->assertSessionHas('success');
         $this->as('risk_manager')->post('/reports/schedules', ['type' => 'kri', 'format' => 'pdf', 'frequency' => 'monthly', 'day' => 1, 'recipients' => ['bukan-email']])->assertSessionHasErrors('recipients.0');
         auth()->logout();
         $this->artisan('manrisk:scheduled-reports --force')->assertSuccessful();
