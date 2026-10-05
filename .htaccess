@@ -2,9 +2,10 @@
 # index.php memeriksa sesi, lalu mengirim index.html hanya kepada pengguna yang sudah masuk.
 DirectoryIndex index.php index.html
 
-# Berkas yang tidak boleh diambil langsung dari web.
+# Berkas yang tidak boleh diambil langsung dari web (termasuk dokumen spesifikasi di docs/).
 # index.html hanya dibaca oleh index.php dari sistem berkas.
 RedirectMatch 404 /\.git(/|$)
+RedirectMatch 404 ^/docs(/|$)
 <FilesMatch "^(README\.md|php\.ini|\.htaccess|index\.html)$">
   Require all denied
 </FilesMatch>
