@@ -108,8 +108,8 @@ class RouteMatrixTest extends TestCase
     public function test_read_only_roles_cannot_mutate_anything(): void
     {
         $allowed = [
-            'auditor' => ['logout', 'logout.others', 'password.update', 'profile.update', 'alerts.read', 'alerts.read-all', 'reports.generate'],
-            'management' => ['logout', 'logout.others', 'password.update', 'profile.update', 'alerts.read', 'alerts.read-all', 'reports.generate', 'reports.schedules.store', 'approvals.decide', 'ai.run'],
+            'auditor' => ['logout', 'logout.others', 'password.update', 'profile.update', 'mfa.send', 'mfa.enable', 'mfa.disable', 'mfa.recovery', 'mfa.devices', 'alerts.read', 'alerts.read-all', 'reports.generate'],
+            'management' => ['logout', 'logout.others', 'password.update', 'profile.update', 'mfa.send', 'mfa.enable', 'mfa.disable', 'mfa.recovery', 'mfa.devices', 'alerts.read', 'alerts.read-all', 'reports.generate', 'reports.schedules.store', 'approvals.decide', 'ai.run'],
         ];
         $failures = [];
         foreach ($allowed as $role => $ok) {

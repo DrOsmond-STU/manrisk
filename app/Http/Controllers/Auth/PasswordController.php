@@ -43,6 +43,7 @@ class PasswordController extends Controller
         AuthLog::write('password_changed', $user->email, $user);
         $request->session()->regenerate();
         \App\Support\SessionManager::revokeAll($user, $request->session()->getId());
+        \App\Support\Mfa::forgetDevices($user); // perangkat tepercaya lama harus verifikasi ulang
         return redirect()->route('dashboard')->with('success', 'Kata sandi berhasil diganti.');
     }
 }

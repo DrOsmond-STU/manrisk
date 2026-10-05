@@ -22,6 +22,7 @@ abstract class TestCase extends BaseTestCase
     protected function setUp(): void
     {
         parent::setUp();
+        \App\Support\MailSettings::flush();
         $this->org = Organization::create(['name' => 'Org Uji', 'code' => 'UJI']);
         CoreSeeder::seedOrganization($this->org);
         $this->unitA = OrgUnit::withoutGlobalScopes()->create(['organization_id' => $this->org->id, 'name' => 'Unit A', 'code' => 'A']);

@@ -17,7 +17,7 @@ const NAV = [
   { g: 'Pemantauan', items: [['incidents.index', '/incidents', 'Insiden', 'alert'], ['losses.index', '/incidents/losses', 'Loss Event Database', 'bolt']] },
   { g: 'Tata Kelola', items: [['objectives.index', '/organization/objectives', 'Pemetaan Sasaran', 'flag'], ['units.index', '/organization/units', 'Struktur Organisasi', 'users'], ['framework.index', '/framework', 'Kerangka ISO 31000', 'book'], ['approvals.index', '/approvals', 'Persetujuan', 'inbox']] },
   { g: 'Pelaporan & Dokumen', items: [['reports.index', '/reports', 'Laporan', 'file'], ['documents.index', '/documents', 'Dokumen & Bukti', 'folder'], ['ai.index', '/ai', 'AI Risk Assistant', 'spark']] },
-  { g: 'Administrasi', items: [['users.index', '/admin/users', 'Pengguna & Akun', 'key', ['super_admin']], ['audit.index', '/admin/audit', 'Audit Trail', 'clock', ['super_admin', 'risk_admin', 'risk_manager', 'auditor']], ['settings.organization', '/settings/organization', 'Pengaturan Organisasi', 'lock', ['super_admin', 'risk_admin']]] },
+  { g: 'Administrasi', items: [['users.index', '/admin/users', 'Pengguna & Akun', 'key', ['super_admin']], ['audit.index', '/admin/audit', 'Audit Trail', 'clock', ['super_admin', 'risk_admin', 'risk_manager', 'auditor']], ['settings.organization', '/settings/organization', 'Pengaturan Organisasi', 'lock', ['super_admin', 'risk_admin']], ['settings.mail', '/admin/mail', 'Email & SMTP', 'send', ['super_admin']]] },
 ];
 const allowed = (it) => !it[4] || it[4].includes(user.value?.role);
 const current = computed(() => page.url.split('?')[0]);

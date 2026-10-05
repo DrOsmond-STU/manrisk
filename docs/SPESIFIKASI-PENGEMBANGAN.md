@@ -559,7 +559,7 @@ Semua tabel memiliki `id` (ULID), `organization_id`, `created_at`, `updated_at`,
 |---|---|
 | `organizations` | name, code, logo, settings(JSON: numbering, thresholds, locale) |
 | `org_units` | parent_id, name, code, type (direktorat/biro/bagian/…), head_user_id, level, path |
-| `users` | name, email (unik per org), password_hash, role, unit_id, scope(JSON unit ids), active, must_change_password, last_login_at, mfa_secret |
+| `users` | name, email (unik per org), password_hash, role, unit_id, scope(JSON unit ids), active, must_change_password, last_login_at, mfa_enabled, mfa_enabled_at, mfa_recovery_codes (HMAC) — tabel pendukung `mfa_codes`, `mfa_trusted_devices`, `system_settings` |
 | `objectives` | code, name, kpi, period |
 | `programs` | objective_id, name, budget |
 | `processes` | program_id, unit_id, name |
@@ -770,7 +770,7 @@ Standar: semua integrasi lewat API berdokumentasi (OpenAPI), token dengan cakupa
 ### 16.1 Autentikasi & sesi
 
 - Kata sandi: bcrypt/argon2id; kebijakan §4.18; kunci 15 menit setelah 5 kegagalan (email+IP); CAPTCHA setelah 3 kegagalan (v1.5).
-- MFA TOTP (opsional per organisasi, wajib untuk Super Admin) — v1.5.
+- MFA kode email/OTP via SMTP — **sudah diterapkan**: wajib per peran (kebijakan organisasi) atau diaktifkan pengguna sendiri; kode 6 digit sekali pakai (HMAC, kedaluwarsa 10 menit), 10 kode pemulihan, perangkat tepercaya opsional 7/30 hari, notifikasi email saat MFA diubah/kode pemulihan dipakai, reset oleh Super Admin/CLI. SMTP dikonfigurasi Super Admin dari aplikasi (sandi terenkripsi). MFA TOTP (aplikasi autentikator) — v1.5.
 - Sesi: cookie HttpOnly, Secure, SameSite=Lax; idle 30 menit; absolut 8 jam; regenerasi ID saat masuk; satu klik keluar dari semua perangkat.
 - Token API: Sanctum, cakupan per endpoint, kedaluwarsa, dapat dicabut.
 

@@ -6,7 +6,10 @@ use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\AiController;
 use App\Http\Controllers\AlertController;
 use App\Http\Controllers\ApprovalController;
+use App\Http\Controllers\Admin\MailSettingsController;
 use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\Auth\MfaController;
+use App\Http\Controllers\Auth\MfaSettingsController;
 use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\ContextController;
 use App\Http\Controllers\ControlController;
@@ -30,6 +33,12 @@ Route::redirect('/', '/dashboard');
 Route::middleware('guest')->group(function () {
     Route::get('/login', [LoginController::class, 'create'])->name('login');
     Route::post('/login', [LoginController::class, 'store'])->middleware('throttle:20,1')->name('login.store');
+    // Langkah kedua (MFA via email). Batas per IP sengaja longgar (banyak pengguna di balik NAT kantor);
+    // batas ketat berlaku per pengguna (10 gagal/15 menit, 5 kode/15 menit) dan per kode (5 percobaan).
+    Route::get('/login/verify', [MfaController::class, 'show'])->name('mfa.challenge');
+    Route::post('/login/verify', [MfaController::class, 'verify'])->middleware('throttle:60,1')->name('mfa.verify');
+    Route::post('/login/verify/resend', [MfaController::class, 'resend'])->middleware('throttle:20,1')->name('mfa.resend');
+    Route::post('/login/verify/cancel', [MfaController::class, 'cancel'])->name('mfa.cancel');
 });
 
 Route::middleware(['auth', 'session.policy'])->group(function () {
@@ -160,6 +169,13 @@ Route::middleware(['auth', 'session.policy', 'password.fresh', 'throttle:app'])-
     // Pengaturan
     Route::get('/profile', [SettingsController::class, 'profile'])->name('profile');
     Route::put('/profile', [SettingsController::class, 'updateProfile'])->name('profile.update');
+    Route::middleware('throttle:10,1')->group(function () {
+        Route::post('/profile/mfa/send', [MfaSettingsController::class, 'send'])->name('mfa.send');
+        Route::post('/profile/mfa/enable', [MfaSettingsController::class, 'enable'])->name('mfa.enable');
+        Route::post('/profile/mfa/disable', [MfaSettingsController::class, 'disable'])->name('mfa.disable');
+        Route::post('/profile/mfa/recovery', [MfaSettingsController::class, 'recovery'])->name('mfa.recovery');
+        Route::delete('/profile/mfa/devices', [MfaSettingsController::class, 'forgetDevices'])->name('mfa.devices');
+    });
     Route::get('/settings/organization', [SettingsController::class, 'organization'])->name('settings.organization');
     Route::put('/settings/organization', [SettingsController::class, 'updateOrganization'])->name('settings.organization.update');
 
@@ -175,5 +191,9 @@ Route::middleware(['auth', 'session.policy', 'password.fresh', 'throttle:app'])-
         Route::post('/users/{user}/reset-password', [UserController::class, 'resetPassword'])->name('users.reset');
         Route::post('/users/{user}/toggle', [UserController::class, 'toggle'])->name('users.toggle');
         Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
+        Route::post('/users/{user}/reset-mfa', [UserController::class, 'resetMfa'])->name('users.reset_mfa');
+        Route::get('/mail', [MailSettingsController::class, 'edit'])->name('settings.mail');
+        Route::put('/mail', [MailSettingsController::class, 'update'])->name('settings.mail.update');
+        Route::post('/mail/test', [MailSettingsController::class, 'test'])->name('settings.mail.test');
     });
 });

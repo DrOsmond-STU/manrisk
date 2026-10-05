@@ -29,11 +29,11 @@ class User extends Authenticatable
 
     protected $fillable = ['organization_id', 'unit_id', 'name', 'email', 'password', 'role', 'position', 'scope_units', 'active', 'must_change_password', 'password_changed_at', 'last_login_at', 'last_login_ip', 'preferences'];
 
-    protected $hidden = ['password', 'remember_token'];
+    protected $hidden = ['password', 'remember_token', 'mfa_recovery_codes'];
 
-    protected $attributes = ['active' => true, 'must_change_password' => false, 'role' => 'risk_officer'];
+    protected $attributes = ['active' => true, 'must_change_password' => false, 'mfa_enabled' => false, 'role' => 'risk_officer'];
 
-    protected $auditExclude = ['last_login_at', 'last_login_ip', 'preferences', 'password_changed_at'];
+    protected $auditExclude = ['last_login_at', 'last_login_ip', 'preferences', 'password_changed_at', 'mfa_recovery_codes'];
 
     protected function casts(): array
     {
@@ -45,6 +45,9 @@ class User extends Authenticatable
             'must_change_password' => 'boolean',
             'password_changed_at' => 'datetime',
             'last_login_at' => 'datetime',
+            'mfa_enabled' => 'boolean',
+            'mfa_enabled_at' => 'datetime',
+            'mfa_recovery_codes' => 'array',
         ];
     }
 
