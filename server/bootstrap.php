@@ -121,6 +121,31 @@ function mr_update_json(string $name, $default, callable $fn)
     return $data;
 }
 
+/* ---------- Kata sandi ---------- */
+
+/** Kata sandi acak dari huruf/angka yang tidak mudah tertukar (tanpa 0/O, 1/l/I). */
+function mr_random_password(int $len = 14): string
+{
+    $alphabet = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    $pw = '';
+    for ($i = 0; $i < $len; $i++) {
+        $pw .= $alphabet[random_int(0, strlen($alphabet) - 1)];
+    }
+    return $pw;
+}
+
+/** Pesan kesalahan bila kata sandi tidak memenuhi kebijakan, null bila memenuhi. */
+function mr_check_password(string $pw): ?string
+{
+    if (mb_strlen($pw) < MR_MIN_PASSWORD) {
+        return sprintf('Kata sandi minimal %d karakter.', MR_MIN_PASSWORD);
+    }
+    if (!preg_match('/[A-Za-z]/', $pw) || !preg_match('/\d/', $pw)) {
+        return 'Kata sandi harus memuat huruf dan angka.';
+    }
+    return null;
+}
+
 /* ---------- Pengguna ---------- */
 
 function mr_users(): array

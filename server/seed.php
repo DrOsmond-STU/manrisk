@@ -15,6 +15,8 @@ if (PHP_SAPI !== 'cli') {
     exit;
 }
 
+require __DIR__ . '/bootstrap.php';
+
 $opts = getopt('', ['out:', 'reset']);
 $out = $opts['out'] ?? (dirname(__DIR__, 2) . '/manrisk-data/users.json');
 if (is_file($out) && !isset($opts['reset'])) {
@@ -32,16 +34,6 @@ $roles = [
     ['auditor',    'Nurul Hidayah',      'Auditor',            'Inspektorat'],
 ];
 
-function mr_random_password(int $len = 14): string
-{
-    // Huruf/angka yang tidak mudah tertukar (tanpa 0/O, 1/l/I)
-    $alphabet = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    $pw = '';
-    for ($i = 0; $i < $len; $i++) {
-        $pw .= $alphabet[random_int(0, strlen($alphabet) - 1)];
-    }
-    return $pw;
-}
 
 $users = [];
 $shown = [];
