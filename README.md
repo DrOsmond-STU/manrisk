@@ -31,10 +31,35 @@ Bisa juga diunggah apa adanya ke GitHub Pages, Netlify, atau hosting statis lain
 | `assets/demo-data.js` | Data demo lengkap (127 risiko, action plan, kontrol, KRI, insiden, dokumen, audit trail) dan perhitungan ulang semua agregat dashboard |
 | `assets/app.js` | Router berbasis hash, komponen (heatmap, grafik, sparkline, wizard), dan semua layar |
 
+## Login & autentikasi
+
+Di server, aplikasi dikunci di balik login (PHP, tanpa basis data):
+
+| Berkas | Peran |
+|---|---|
+| `index.php` | Gerbang: menampilkan halaman masuk, atau mengirim `index.html` bila sesi valid |
+| `server/bootstrap.php` | Sesi (cookie HttpOnly + Secure + SameSite), hash bcrypt, CSRF, pembatasan percobaan masuk, log |
+| `server/login.php` | Halaman masuk |
+| `server/seed.php` | Membuat akun awal: `php server/seed.php --out ../manrisk-data/users.json` |
+| `api/session.php`, `api/login.php`, `api/logout.php`, `api/password.php` | API sesi, masuk, keluar, ganti kata sandi |
+| `api/asset.php` | Gerbang berkas JavaScript: `assets/*.js` hanya dikirim ke sesi yang sudah masuk (lihat `.htaccess`) |
+
+Data akun disimpan **di luar folder publik**: `../manrisk-data/users.json` (atau folder pada variabel
+lingkungan `MR_DATA_DIR`). Berkas ini tidak pernah masuk repo. Aturan keamanan yang berlaku:
+
+- kata sandi disimpan sebagai hash bcrypt; minimal 10 karakter dengan huruf dan angka saat diganti;
+- 5 kali salah dari email + IP yang sama mengunci percobaan selama 15 menit;
+- sesi berakhir setelah 30 menit tanpa aktivitas atau 8 jam sejak masuk;
+- semua percobaan masuk, keluar, dan ganti kata sandi dicatat di `manrisk-data/auth.log`;
+- peran pengguna (Super Admin … Auditor) ditentukan oleh akunnya, bukan dipilih di layar.
+
+Tanpa server PHP (membuka `index.html` langsung atau pratinjau), aplikasi berjalan dalam **mode demo**
+dengan pemilih peran di bilah atas.
+
 ## Deploy ke server
 
 Situs dipasang di https://manrisk.semestateknologiutama.com lewat Git Deploy (cPanel) dari branch `main`.
-Setiap kali `assets/*.js` berubah, naikkan penanda `?v=` pada tag `<script>` di `index.html`
+Setelah deploy pertama, buat akun dengan `server/seed.php` (lihat di atas). Setiap kali `assets/*.js` berubah, naikkan penanda `?v=` pada tag `<script>` di `index.html`
 agar browser dan proxy server tidak memakai salinan lama. `.htaccess` membuat `index.html` selalu
 dicek ulang ke server dan menyembunyikan folder `.git`.
 

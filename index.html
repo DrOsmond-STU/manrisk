@@ -638,6 +638,20 @@ button.kpi:hover { transform: translateY(-3px); box-shadow: var(--float-md); }
   .ph { padding: 18px 18px; border-radius: 16px; }
 }
 
+/* Menu akun & modal kata sandi */
+.user { border: 0; background: transparent; padding: 2px 6px 2px 2px; border-radius: 999px; cursor: default; text-align: left; font: inherit; }
+.user.u-btn { cursor: pointer; }
+.user.u-btn:hover { background: var(--surface-2); }
+.scrim.clear { background: transparent; }
+.umenu { position: fixed; top: calc(54px + env(safe-area-inset-top, 0px)); right: 16px; z-index: 61; width: min(320px, calc(100vw - 32px)); background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow), 0 20px 40px rgba(4, 35, 79, .18); padding: 6px 0 8px; }
+.um-h { display: flex; gap: 12px; align-items: center; padding: 12px 14px 10px; }
+.um-h .avatar { width: 40px; height: 40px; font-size: 14px; }
+.um-i { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; background: transparent; padding: 9px 14px; font: inherit; font-weight: 600; color: var(--fg-2); cursor: pointer; text-align: left; }
+.um-i:hover { background: var(--surface-2); color: var(--fg); }
+.um-i.danger { color: var(--bad-ink); }
+.modal { position: fixed; z-index: 62; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(440px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow-y: auto; background: var(--surface); border-radius: 16px; box-shadow: 0 24px 60px rgba(4, 35, 79, .28); }
+.modal .drawer-h h3 { font-size: 16px; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
   .btn:hover, .icon-btn:hover, .tabs button:hover, .seg button:hover, .chip:hover, button.kpi:hover, .nav a:hover { transform: none; }
@@ -656,8 +670,8 @@ button.kpi:hover { transform: translateY(-3px); box-shadow: var(--float-md); }
 <div class="toasts" id="toasts" aria-live="polite"></div>
 <div class="tip" id="tip" hidden></div>
 <!-- Naikkan ?v= setiap kali berkas JS berubah, supaya browser dan proxy tidak memakai salinan lama. -->
-<script src="assets/data.js?v=3"></script>
-<script src="assets/demo-data.js?v=3"></script>
-<script src="assets/app.js?v=3"></script>
+<script src="assets/data.js?v=4"></script>
+<script src="assets/demo-data.js?v=4"></script>
+<script src="assets/app.js?v=4"></script>
 </body>
 </html>
