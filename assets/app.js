@@ -165,7 +165,7 @@
     if (pg.n <= 1) return '';
     const from = (pg.p - 1) * PER + 1, to = Math.min(pg.total, pg.p * PER);
     const nums = []; for (let i = 1; i <= pg.n; i++) if (i === 1 || i === pg.n || Math.abs(i - pg.p) <= 1) nums.push(i); else if (nums[nums.length - 1] !== '…') nums.push('…');
-    return `<div class="row between" style="padding:12px 16px;border-top:1px solid var(--line)"><span class="hint">Menampilkan ${from}–${to} dari ${pg.total}</span><div class="row" style="gap:4px">${`<button class="btn sm" data-act="page" data-v="${key}:${pg.p - 1}" ${pg.p === 1 ? 'disabled' : ''} aria-label="Halaman sebelumnya">‹</button>`}${nums.map((i) => (i === '…' ? '<span class="muted" style="padding:0 4px">…</span>' : `<button class="btn sm ${i === pg.p ? 'pri' : ''}" data-act="page" data-v="${key}:${i}" aria-current="${i === pg.p}">${i}</button>`)).join('')}<button class="btn sm" data-act="page" data-v="${key}:${pg.p + 1}" ${pg.p === pg.n ? 'disabled' : ''} aria-label="Halaman berikutnya">›</button></div></div>`;
+    return `<div class="row between" style="padding:12px 16px;border-top:1px solid var(--line)"><span class="hint">Menampilkan ${from}–${to} dari ${pg.total}</span><div class="row" style="gap:4px">${`<button class="btn sm ghost c-blue" data-act="page" data-v="${key}:${pg.p - 1}" ${pg.p === 1 ? 'disabled' : ''} aria-label="Halaman sebelumnya">‹</button>`}${nums.map((i) => (i === '…' ? '<span class="muted" style="padding:0 4px">…</span>' : `<button class="btn sm c-blue ${i === pg.p ? 'pri' : 'ghost'}" data-act="page" data-v="${key}:${i}" aria-current="${i === pg.p}">${i}</button>`)).join('')}<button class="btn sm ghost c-blue" data-act="page" data-v="${key}:${pg.p + 1}" ${pg.p === pg.n ? 'disabled' : ''} aria-label="Halaman berikutnya">›</button></div></div>`;
   }
 
   /* ======================= Navigasi ======================= */
@@ -751,7 +751,7 @@
       <div class="row" style="margin-top:20px">${fmts.map((f) => `<button class="btn sm" data-act="toast" data-v="Laporan eksekutif diekspor ke ${f} (simulasi)">${ic('down')}${f}</button>`).join('')}</div></article>`;
     return `${ph('ISO 31000 · 6.7 Pencatatan & Pelaporan', 'Laporan', 'Laporan baku dapat diekspor ke PDF, Excel, atau Word. Laporan eksekutif dapat disusun AI hanya dengan memilih periode.', '')}
     <section class="callout" style="flex-wrap:wrap"><span class="ai-ic">${ic('spark')}</span><div style="flex:1;min-width:220px"><p><b>AI Generate Risk Report</b></p><small>Pilih periode, lalu AI menyusun ringkasan eksekutif, top risk, tren, progres mitigasi, KRI, insiden, aksi terlambat, dan rekomendasi.</small></div>
-      <div class="row"><select class="sel" id="rep-per" aria-label="Periode laporan" style="background-color:#12343b;color:#e8f2f3;border-color:#2e5a64">${['TW III 2026', 'TW II 2026', 'Semester I 2026', 'Tahun 2025'].map((p) => opt(p, p, S.reportPeriod)).join('')}</select><button class="btn" style="background:#e8f2f3;color:#0e2a31;border-color:#e8f2f3" data-act="gen-report">${ic('spark')}Buat laporan</button></div></section>
+      <div class="row"><select class="sel" id="rep-per" aria-label="Periode laporan">${['TW III 2026', 'TW II 2026', 'Semester I 2026', 'Tahun 2025'].map((p) => opt(p, p, S.reportPeriod)).join('')}</select><button class="btn c-pink" data-act="gen-report">${ic('spark')}Buat laporan</button></div></section>
     ${gen}
     <div class="rep-grid">${CAT.map(([a, b]) => `<div class="rep"><h4>${a}</h4><p>${b}</p><div class="fmt">${fmts.map((f) => `<button class="btn sm" data-act="toast" data-v="${a} diekspor ke ${f} (simulasi)">${f}</button>`).join('')}</div></div>`).join('')}</div>
     ${card('Riwayat laporan', `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Laporan</th><th>Format</th><th>Dibuat oleh</th><th>Waktu</th><th>Keterangan</th><th></th></tr></thead><tbody>${D.REPORT_LOG.map((l) => `<tr><td class="t-main">${ic('file')} ${esc(l.n)}</td><td><span class="pill">${l.f}</span></td><td>${esc(l.by)}</td><td class="mono" style="white-space:nowrap">${fmtDate(l.t.slice(0, 10))}, ${l.t.slice(11)}</td><td class="fg2">${esc(l.note)}</td><td><button class="btn sm ghost" data-act="toast" data-v="Mengunduh ${esc(l.n)} (simulasi)" aria-label="Unduh">${ic('down')}</button></td></tr>`).join('')}</tbody></table></div>`, { flush: true, sub: `${D.REPORT_LOG.length} laporan terakhir` })}`;
@@ -810,6 +810,31 @@
     ${card('Kemampuan', `<ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.8" class="fg2"><li>Identify risk</li><li>Risk statement generator</li><li>Recommend treatment</li><li>Analyze risk change</li><li>Risk summary</li><li><a href="#reports">Generate report</a></li></ul>`)}</div></div>`;
   };
 
+  /* Tombol warna-warni: warna mengikuti makna tombol, sisanya bergiliran agar tiap kelompok tampil berwarna */
+  const PALETTE = ['c-blue', 'c-violet', 'c-teal', 'c-orange', 'c-pink', 'c-green', 'c-indigo', 'c-cyan', 'c-amber'];
+  const COLOR_RULES = [
+    [/excel|setujui|simpan|lanjut|selesai/i, 'c-green'],
+    [/pdf|tolak|hapus/i, 'c-red'],
+    [/\bword\b/i, 'c-indigo'],
+    [/\bai\b|laporan eksekutif|buat laporan|tanya/i, 'c-violet'],
+    [/tambah|baru|laporkan|rencana perbaikan|undang|^\s*\+?\s*(kri|kontrol|kategori|pengguna|action plan)\s*$/i, 'c-teal'],
+    [/ubah|revisi|susun/i, 'c-amber'],
+    [/ekspor|unduh|alur persetujuan/i, 'c-cyan'],
+    [/kosongkan|reset|tutup|sebelumnya/i, 'c-indigo']
+  ];
+  function colorize(root) {
+    $$('.btn, .icon-btn, .tabs button, .seg button, .chip', root).forEach((el, i) => {
+      if (/\bc-[a-z]+\b/.test(el.className)) return;
+      const t = (el.textContent || el.getAttribute('aria-label') || '').trim();
+      let c = null;
+      if (el.classList.contains('danger')) c = 'c-red';
+      if (!c) for (const [re, k] of COLOR_RULES) if (re.test(t) || re.test(el.getAttribute('aria-label') || '')) { c = k; break; }
+      if (!c && el.classList.contains('pri')) c = 'c-blue';
+      if (!c) c = PALETTE[i % PALETTE.length];
+      el.classList.add(c);
+    });
+  }
+
   /* ======================= Shell ======================= */
   const TITLES = {};
   NAV.forEach((g) => g.items.forEach(([id, t]) => (TITLES[id] = t)));
@@ -821,15 +846,15 @@
     <div class="side-foot">Purwarupa UI/UX · data contoh fiktif<br>${esc(D.ORG.name)}</div>`;
   }
   function renderTop() {
-    $('#top').innerHTML = `<button class="icon-btn menu-btn" data-act="nav" aria-label="Buka menu">${ic('menu')}</button>
+    $('#top').innerHTML = `<button class="icon-btn menu-btn c-indigo" data-act="nav" aria-label="Buka menu">${ic('menu')}</button>
     <form class="search" data-form="search" role="search"><span class="muted">${ic('search')}</span><input id="gq" type="search" placeholder="Cari risiko, kontrol, KRI…" aria-label="Pencarian global"></form>
     <div class="top-ctx">
       <select class="sel" id="org-sel" aria-label="Organisasi" data-orgsel>${opt('bldn', 'BLDN', 'bldn')}${opt('rs', 'RSUD Kota Contoh', 'bldn')}${opt('uv', 'Universitas Contoh', 'bldn')}</select>
       <select class="sel" id="per-sel" aria-label="Periode" data-act-change="period">${['TW III 2026', 'TW II 2026', 'TW I 2026'].map((p) => opt(p, p, 'TW III 2026')).join('')}</select>
       <select class="sel" id="role-sel" aria-label="Masuk sebagai peran" data-rolesel title="Simulasi peran (RBAC)">${Object.keys(D.ROLES).map((r) => opt(r, `Peran: ${r}`, S.role)).join('')}</select>
-      <button class="icon-btn" data-act="theme" aria-label="Ganti tema terang/gelap">${ic('moon')}</button>
-      <button class="icon-btn" data-act="notif" aria-label="Notifikasi early warning">${ic('bell')}<span class="dot">${WARNINGS.length}</span></button>
-      <a class="icon-btn ai-btn" href="#ai" aria-label="AI Risk Assistant">${ic('spark')}</a>
+      <button class="icon-btn c-indigo" data-act="theme" aria-label="Ganti tema terang/gelap">${ic('moon')}</button>
+      <button class="icon-btn c-orange" data-act="notif" aria-label="Notifikasi early warning">${ic('bell')}<span class="dot">${WARNINGS.length}</span></button>
+      <a class="icon-btn ai-btn c-violet" href="#ai" aria-label="AI Risk Assistant">${ic('spark')}</a>
       <span class="user"><span class="avatar">${initials(ME()) || ME()[0]}</span><span class="u-txt"><b>${esc(ME())}</b><br><span class="muted">${esc(S.role)}</span></span></span>
     </div>`;
   }
@@ -841,6 +866,7 @@
       o.innerHTML = '<div class="scrim" data-act="nav"></div>';
     } else o.innerHTML = '';
     $('#side').classList.toggle('open', S.nav);
+    colorize($('#overlay'));
   }
 
   function render(keepScroll) {
@@ -858,6 +884,7 @@
     if (changed && !keepScroll) { window.scrollTo(0, 0); S.nav = false; }
     S.lastRoute = id + (arg || '');
     renderOverlay();
+    colorize(document);
     const m = $('#msgs'); if (m) m.scrollTop = m.scrollHeight;
   }
 

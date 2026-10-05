@@ -6,56 +6,72 @@
 <title>ManRisk ERM</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@500;600;700&family=Public+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <style>
 /* Layout: app shell — petrol sidebar (menu per arsitektur modul ISO 31000) + topbar konteks (organisasi, periode, peran) + kanvas kerja. */
 :root {
-  --bg: #f2f5f6;
+  --bg: #f1f5fb;
   --surface: #ffffff;
-  --surface-2: #eaf0f1;
-  --line: #d6dfe1;
-  --fg: #12232a;
-  --fg-2: #46595f;
-  --muted: #6f8389;
-  --accent: #0b6e80;
+  --surface-2: #e3ebf6;
+  --line: #dce6f2;
+  --line-2: #b9cce4;
+  --fg: #0b1b2e;
+  --fg-2: #27405c;
+  --muted: #526883;
+  --accent: #1268c4;
   --accent-ink: #ffffff;
-  --accent-soft: #dcedf0;
-  --side-bg: #0e2a31;
-  --side-fg: #c3d5d9;
-  --side-mute: #7d9ca3;
-  --side-hi: #173c45;
+  --accent-soft: #dcebfa;
+  --brand-300: #8cc7f2;
+  --brand-700: #0b4da2;
+  --grad-from: #062b63;
+  --grad-to: #1a7bd4;
+  --side-bg: #062b63;
+  --side-fg: rgba(255, 255, 255, .86);
+  --side-mute: rgba(255, 255, 255, .62);
+  --side-hi: rgba(255, 255, 255, .12);
   /* status risiko (tetap, selalu disertai label) */
   --lv-l: #0ca30c;
   --lv-m: #fab219;
   --lv-h: #ec835a;
   --lv-vh: #d03b3b;
-  --ok-ink: #0a6e0a;
-  --bad-ink: #b42f2f;
-  --f-display: "Familjen Grotesk", "Segoe UI", system-ui, sans-serif;
-  --f-body: "Public Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
-  --f-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-  --r: 10px;
+  --ok-ink: #1c7f5a;
+  --bad-ink: #b00d21;
+  --f-display: "Plus Jakarta Sans", "Segoe UI", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --r: 14px;
   --tint: 24%;
-  --shadow: 0 1px 2px rgba(10, 35, 42, .06), 0 4px 16px rgba(10, 35, 42, .05);
+  --shadow: 0 1px 2px rgba(4, 35, 79, .06), 0 8px 20px rgba(4, 35, 79, .07);
+  --float-sm: 0 1px 2px rgba(4, 35, 79, .08), 0 2px 6px rgba(4, 35, 79, .10);
+  --float-md: 0 2px 4px rgba(4, 35, 79, .10), 0 6px 14px rgba(4, 35, 79, .14);
+  --hero-glow: 0 14px 30px -12px rgba(6, 43, 99, .55);
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0b1518; --surface: #121f23; --surface-2: #19292e; --line: #253a40;
-    --fg: #e4eef0; --fg-2: #a7babf; --muted: #7c9298;
-    --accent: #43b6c8; --accent-ink: #062027; --accent-soft: #123842;
-    --side-bg: #08161a; --side-fg: #b9ccd0; --side-mute: #6d8a91; --side-hi: #143039;
-    --ok-ink: #4cc94c; --bad-ink: #f07a7a; --tint: 40%;
-    --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 4px 16px rgba(0, 0, 0, .25);
+    --bg: #071220; --surface: #0b1724; --surface-2: #12212f; --line: #1d2e3f; --line-2: #2f4762;
+    --fg: #eaf2fb; --fg-2: #c3d6e8; --muted: #93a9c0;
+    --accent: #4a9be4; --accent-ink: #04172e; --accent-soft: #14324d;
+    --brand-300: #a6d6f7; --brand-700: #74baee;
+    --grad-from: #041b3f; --grad-to: #0b4da2; --side-bg: #041b3f;
+    --ok-ink: #52c99a; --bad-ink: #ff7a85; --tint: 40%;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 8px 20px rgba(0, 0, 0, .38);
+    --float-sm: 0 1px 2px rgba(0, 0, 0, .5), 0 2px 6px rgba(0, 0, 0, .42);
+    --float-md: 0 2px 4px rgba(0, 0, 0, .5), 0 6px 14px rgba(0, 0, 0, .5);
+    --hero-glow: 0 14px 30px -12px rgba(0, 0, 0, .7);
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #0b1518; --surface: #121f23; --surface-2: #19292e; --line: #253a40;
-  --fg: #e4eef0; --fg-2: #a7babf; --muted: #7c9298;
-  --accent: #43b6c8; --accent-ink: #062027; --accent-soft: #123842;
-  --side-bg: #08161a; --side-fg: #b9ccd0; --side-mute: #6d8a91; --side-hi: #143039;
-  --ok-ink: #4cc94c; --bad-ink: #f07a7a; --tint: 40%;
-  --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 4px 16px rgba(0, 0, 0, .25);
+  --bg: #071220; --surface: #0b1724; --surface-2: #12212f; --line: #1d2e3f; --line-2: #2f4762;
+  --fg: #eaf2fb; --fg-2: #c3d6e8; --muted: #93a9c0;
+  --accent: #4a9be4; --accent-ink: #04172e; --accent-soft: #14324d;
+  --brand-300: #a6d6f7; --brand-700: #74baee;
+  --grad-from: #041b3f; --grad-to: #0b4da2; --side-bg: #041b3f;
+  --ok-ink: #52c99a; --bad-ink: #ff7a85; --tint: 40%;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 8px 20px rgba(0, 0, 0, .38);
+  --float-sm: 0 1px 2px rgba(0, 0, 0, .5), 0 2px 6px rgba(0, 0, 0, .42);
+  --float-md: 0 2px 4px rgba(0, 0, 0, .5), 0 6px 14px rgba(0, 0, 0, .5);
+  --hero-glow: 0 14px 30px -12px rgba(0, 0, 0, .7);
   color-scheme: dark;
 }
 
@@ -438,7 +454,6 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
 .callout .ai-ic { width: 32px; height: 32px; border-radius: 8px; background: #1d4b55; display: grid; place-items: center; flex: none; color: #8fe0ec; }
 .callout p { font-size: 14px; line-height: 1.55; }
 .callout small { color: #8fb0b6; font-size: 11.5px; display: block; margin-top: 4px; }
-.callout .btn { background: transparent; color: #e8f2f3; border-color: #2e5a64; }
 
 .empty { padding: 28px 16px; text-align: center; color: var(--muted); font-size: 13px; }
 .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
@@ -495,8 +510,137 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
   #role-sel { flex: 1 1 auto; min-width: 0; }
   .fbar .sel { flex: 1 1 140px; }
 }
+/* =====================================================================
+   Tema biru gradasi (selaras KG SafeGuard) + tombol warna-warni melayang
+   ===================================================================== */
+/* Palet tombol: --b1/--b2 = gradasi, --bt = warna teks varian lembut */
+.c-blue.c-blue { --b1: #1268c4; --b2: #34a8e0; --bt: #0b4da2; }
+.c-violet.c-violet { --b1: #6a3fd4; --b2: #a46bf0; --bt: #5a2fc0; }
+.c-teal.c-teal { --b1: #0d8a84; --b2: #2cc4b0; --bt: #0a6f6a; }
+.c-green.c-green { --b1: #16824a; --b2: #3cbf6a; --bt: #11683b; }
+.c-orange.c-orange { --b1: #d4550c; --b2: #f7973a; --bt: #b4470a; }
+.c-pink.c-pink { --b1: #c42a78; --b2: #f0609f; --bt: #a82265; }
+.c-amber.c-amber { --b1: #a86500; --b2: #e6a312; --bt: #8a5300; }
+.c-red.c-red { --b1: #c01f2e; --b2: #f05454; --bt: #a51a27; }
+.c-indigo.c-indigo { --b1: #2f3fb8; --b2: #5b6cf0; --bt: #2a37a0; }
+.c-cyan.c-cyan { --b1: #0a7ca6; --b2: #22b8e0; --bt: #08698d; }
+:root[data-theme="dark"] [class*="c-"] { --bt: var(--b2); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) [class*="c-"] { --bt: var(--b2); } }
+
+.btn, .icon-btn, .tabs button, .seg button, .chip {
+  --b1: #1268c4; --b2: #34a8e0; --bt: #0b4da2;
+  transition: transform .18s ease, box-shadow .18s ease, filter .18s ease, background-color .18s ease;
+}
+/* Tombol utama: gradasi berwarna, berbayang, melayang saat disorot */
+.btn, .btn.pri {
+  background: linear-gradient(135deg, var(--b1), var(--b2));
+  border: 0; color: #fff; border-radius: 10px; padding: 9px 15px;
+  box-shadow: 0 2px 4px rgba(4, 35, 79, .12), 0 8px 16px -6px color-mix(in oklab, var(--b1) 70%, transparent);
+}
+.btn:hover, .btn.pri:hover { transform: translateY(-2px); filter: brightness(1.05); border-color: transparent;
+  box-shadow: 0 4px 8px rgba(4, 35, 79, .12), 0 14px 24px -8px color-mix(in oklab, var(--b1) 75%, transparent); }
+.btn:active { transform: translateY(0); box-shadow: inset 0 2px 4px rgba(4, 35, 79, .25); }
+.btn svg.ic { stroke: currentColor; }
+/* Varian lembut (tautan sekunder): latar berwarna tipis, tetap melayang */
+.btn.ghost, .btn.ghost:hover {
+  background: color-mix(in oklab, var(--b1) 13%, var(--surface)); color: var(--bt);
+  box-shadow: var(--float-sm), 0 6px 12px -8px color-mix(in oklab, var(--b1) 60%, transparent);
+}
+.btn.ghost:hover { background: color-mix(in oklab, var(--b1) 20%, var(--surface)); }
+.btn.danger { --b1: #c01f2e; --b2: #f05454; color: #fff; }
+.btn[disabled], .btn[disabled]:hover { background: var(--surface-2); color: var(--muted); box-shadow: none; transform: none; filter: none; }
+
+/* Tombol ikon di bilah atas */
+.icon-btn { border: 0; color: #fff; border-radius: 11px;
+  background: linear-gradient(135deg, var(--b1), var(--b2));
+  box-shadow: 0 2px 4px rgba(4, 35, 79, .12), 0 8px 16px -6px color-mix(in oklab, var(--b1) 70%, transparent); }
+.icon-btn:hover { color: #fff; transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(4, 35, 79, .12), 0 14px 22px -8px color-mix(in oklab, var(--b1) 75%, transparent); }
+.icon-btn .dot { box-shadow: 0 0 0 2px var(--surface); }
+
+/* Tab & segmen jadi pil melayang; yang aktif terisi gradasi */
+.tabs { border-bottom: 0; gap: 8px; padding: 4px 4px 10px; flex-wrap: wrap; overflow: visible; }
+.tabs button { border: 1px solid var(--line); border-radius: 999px; margin: 0; padding: 8px 15px;
+  background: var(--surface); color: var(--bt); box-shadow: var(--float-sm); }
+.tabs button:hover { transform: translateY(-2px); box-shadow: var(--float-md); }
+.tabs button.on { background: linear-gradient(135deg, var(--b1), var(--b2)); color: #fff; border-color: transparent;
+  box-shadow: 0 8px 16px -6px color-mix(in oklab, var(--b1) 70%, transparent); }
+.tabs button.on .c { background: rgba(255, 255, 255, .25); color: #fff; }
+.seg { border: 0; background: var(--surface-2); padding: 3px; gap: 3px; border-radius: 999px; overflow: visible; }
+.seg button { border-radius: 999px; color: var(--bt); background: transparent; padding: 6px 13px; }
+.seg button + button { border-left: 0; }
+.seg button:hover { transform: translateY(-1px); background: var(--surface); box-shadow: var(--float-sm); }
+.seg button.on { background: linear-gradient(135deg, var(--b1), var(--b2)); color: #fff;
+  box-shadow: 0 6px 12px -5px color-mix(in oklab, var(--b1) 70%, transparent); }
+
+/* Chip pilihan (saran AI, contoh pertanyaan, opsi perlakuan) */
+.chip { border: 1px solid var(--line); border-left: 4px solid var(--b1); background: var(--surface); box-shadow: var(--float-sm); }
+.chip:hover { border-color: var(--line); border-left-color: var(--b1); transform: translateY(-2px); box-shadow: var(--float-md); color: var(--fg); }
+
+/* Ubin yang bisa diklik ikut melayang */
+button.kpi { transition: transform .18s ease, box-shadow .18s ease; }
+button.kpi:hover { transform: translateY(-3px); box-shadow: var(--float-md); }
+
+/* Sidebar gradasi biru */
+.side { background: linear-gradient(160deg, var(--grad-from), var(--grad-to)); }
+.brand-mark { background: rgba(255, 255, 255, .14); border-color: rgba(255, 255, 255, .22); }
+.brand small { color: var(--brand-300); }
+.nav-g > span { color: var(--side-mute); }
+.nav a { color: var(--side-fg); border-radius: 10px; padding: 8px 10px; transition: background-color .15s ease, transform .15s ease; }
+.nav a:hover { background: var(--side-hi); color: #fff; transform: translateX(2px); }
+.nav a.on { background: #fff; color: #0b4da2; font-weight: 600; box-shadow: 0 2px 4px rgba(4, 35, 79, .18), 0 8px 18px rgba(4, 35, 79, .25); }
+.nav a .cnt { box-shadow: 0 0 0 2px rgba(255, 255, 255, .85); }
+.side-foot { border-top-color: rgba(255, 255, 255, .16); color: var(--side-mute); }
+
+/* Header halaman jadi panel gradasi */
+.ph { background: linear-gradient(135deg, var(--grad-from), var(--grad-to)); color: #fff; padding: 22px 26px;
+  border-radius: 20px; box-shadow: var(--hero-glow); position: relative; overflow: hidden; }
+.ph::after { content: ""; position: absolute; right: -60px; top: -70px; width: 260px; height: 260px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, .16), rgba(255, 255, 255, 0) 70%); pointer-events: none; }
+.ph > * { position: relative; z-index: 1; }
+.ph .eyebrow { color: var(--brand-300); }
+.ph h1 { color: #fff; }
+.ph p { color: #d6e8fb; }
+.ph .sel { border-color: transparent; box-shadow: var(--float-md); color: var(--fg); }
+.ph .pill { box-shadow: var(--float-sm); }
+.ph .trend.up { color: #ffd0d4; } .ph .trend.down { color: #c9f5dd; } .ph .trend.flat { color: #e3efff; }
+.crumb a { color: var(--accent); }
+
+/* Kartu dan permukaan */
+.card, .kpi, .kri, .rep, .profile, .doc, .kcard, .jstep, .cnode { border-color: var(--line); }
+.card, .kpi, .kri, .rep, .profile, .doc { box-shadow: var(--shadow); }
+.kcard { box-shadow: var(--float-sm); border-radius: 10px; }
+.kcol { border-radius: var(--r); }
+.profile .total { background: linear-gradient(150deg, var(--grad-from), var(--grad-to)); }
+.profile .total .k-l, .profile .total .k-s { color: #d6e8fb; }
+.tbl th { background: var(--surface-2); }
+.card .tbl th { background: var(--surface-2); }
+.search { border-radius: 10px; box-shadow: var(--float-sm); border-color: var(--line); }
+.sel, .inp, .field select, .field textarea { border-radius: 10px; box-shadow: var(--float-sm); border-color: var(--line); }
+.top { background: color-mix(in oklab, var(--bg) 86%, transparent); border-bottom-color: var(--line); }
+.avatar { background: linear-gradient(135deg, #1268c4, #34a8e0); color: #fff; }
+.prog .bar i { background: linear-gradient(90deg, var(--grad-to), #34a8e0); }
+
+/* Panel AI (callout) mengikuti gradasi */
+.callout { background: linear-gradient(135deg, #0b3a7a, #6a3fd4); border: 0; box-shadow: var(--hero-glow); }
+.callout .ai-ic { background: rgba(255, 255, 255, .16); color: #fff; }
+.callout small { color: #d9ccff; }
+.callout .sel { background-color: rgba(255, 255, 255, .14); color: #fff; border-color: rgba(255, 255, 255, .25); }
+.callout .sel option { color: #0b1b2e; }
+
+.msg.me { background: linear-gradient(135deg, #1268c4, #34a8e0); box-shadow: var(--float-sm); }
+.msg.ai { box-shadow: var(--float-sm); }
+.steps button.on { border-top-color: var(--grad-to); }
+.wf-s.done .wf-dot { background: linear-gradient(135deg, #1268c4, #34a8e0); border-color: transparent; }
+.toast { background: linear-gradient(135deg, var(--grad-from), var(--grad-to)); color: #fff; border-radius: 999px; padding: 11px 18px; }
+
+@media (max-width: 560px) {
+  .ph { padding: 18px 18px; border-radius: 16px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
+  .btn:hover, .icon-btn:hover, .tabs button:hover, .seg button:hover, .chip:hover, button.kpi:hover, .nav a:hover { transform: none; }
 }
 </style>
 </head>
