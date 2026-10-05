@@ -1,0 +1,42 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Risk;
+use App\Services\AiService;
+use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
+use Inertia\Inertia;
+
+class AiController extends Controller
+{
+    public function index(Request $request, AiService $ai)
+    {
+        return Inertia::render('Ai/Index', ['enabled' => $ai->available(), 'provider' => $ai->hasProvider() ? config('manrisk.ai.model') : 'mode lokal (tanpa kunci API)', 'remaining' => $ai->remaining($request->user()), 'risks' => $this->riskOptions()]);
+    }
+
+    public function run(Request $request, AiService $ai)
+    {
+        $data = $request->validate([
+            'feature' => ['required', Rule::in(['suggest_risk', 'suggest_controls', 'suggest_treatment', 'explain_score', 'summarize', 'draft_report'])],
+            'risk_id' => ['nullable', 'integer'],
+            'context' => ['nullable', 'string', 'max:3000'],
+        ]);
+        $input = ['context' => strip_tags($data['context'] ?? '')];
+        if (!empty($data['risk_id'])) {
+            $risk = Risk::with('category')->findOrFail($data['risk_id']);
+            abort_unless($request->user()->can('view', $risk), 403);
+            $input['risk'] = $risk->only('code', 'name', 'cause', 'event', 'impact', 'existing_controls', 'treatment', 'inherent_l', 'inherent_i', 'inherent_score', 'residual_l', 'residual_i', 'residual_score', 'residual_level', 'target_score', 'evaluation')
+                + ['category' => $risk->category?->name, 'appetite' => $risk->category?->appetite, 'tolerance' => $risk->category?->tolerance];
+        }
+        if (in_array($data['feature'], ['summarize', 'draft_report'], true)) {
+            $risks = $this->scopeUnits(Risk::query())->where('status', '!=', 'closed')->get();
+            $plans = \App\Models\ActionPlan::whereNull('cancelled_at')->get();
+            $input['summary'] = ['total' => $risks->count(), 'high' => $risks->whereIn('residual_level', ['high', 'very_high'])->count(), 'avg' => round((float) $risks->avg('residual_score'), 1),
+                'escalate' => $risks->whereIn('evaluation', ['escalate', 'critical'])->count(), 'plan_done' => $plans->where('progress', 100)->count(), 'plan_total' => $plans->count(),
+                'incidents_ytd' => \App\Models\Incident::whereYear('occurred_at', now()->year)->count(), 'loss_ytd' => (float) \App\Models\Incident::whereYear('occurred_at', now()->year)->sum('loss_amount')];
+            $input['top'] = $risks->sortByDesc('residual_score')->take(10)->values()->map(fn ($r) => $r->only('code', 'name', 'residual_score', 'residual_level', 'evaluation'))->all();
+        }
+        return response()->json($ai->run($request->user(), $data['feature'], $input));
+    }
+}

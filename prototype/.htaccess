@@ -1,0 +1,28 @@
+# ManRisk ERM
+# index.php memeriksa sesi, lalu mengirim index.html hanya kepada pengguna yang sudah masuk.
+DirectoryIndex index.php index.html
+
+# Berkas yang tidak boleh diambil langsung dari web (termasuk dokumen spesifikasi di docs/).
+# index.html hanya dibaca oleh index.php dari sistem berkas.
+RedirectMatch 404 /\.git(/|$)
+RedirectMatch 404 ^/docs(/|$)
+<FilesMatch "^(README\.md|php\.ini|\.htaccess|index\.html)$">
+  Require all denied
+</FilesMatch>
+
+# Berkas JavaScript aplikasi (termasuk data demo) hanya dikirim ke sesi yang sudah masuk.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteRule ^assets/([A-Za-z0-9_-]+\.js)$ api/asset.php?f=$1 [L,QSA]
+</IfModule>
+
+# Respons PHP bersifat pribadi: jangan pernah disimpan proxy/browser.
+<IfModule mod_headers.c>
+  <FilesMatch "\.php$">
+    Header set Cache-Control "private, no-store, no-cache, must-revalidate"
+  </FilesMatch>
+</IfModule>
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType text/html "access plus 0 seconds"
+</IfModule>
