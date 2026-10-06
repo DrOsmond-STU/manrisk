@@ -17,9 +17,11 @@ jobs:
     runs-on: ubuntu-latest
 
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
-        php: [8.3, 8.4, 8.5]
+        # Produksi memakai PHP 8.3. PHP 8.5 belum didukung phpoffice/phpspreadsheet 1.x (dipakai maatwebsite/excel),
+        # sehingga composer install pasti gagal di 8.5; tambahkan kembali setelah dependensi mendukungnya.
+        php: [8.3, 8.4]
 
     name: PHP ${{ matrix.php }}
 
