@@ -19,7 +19,7 @@ const pieOpt = { tooltip: { trigger: 'item' }, series: [{ type: 'pie', radius: [
   <Head title="Executive Dashboard" />
   <PageHead kicker="Dashboard" title="Executive Dashboard" sub="Pandangan pimpinan: profil risiko, risk appetite per kategori, tren, dan risiko utama organisasi.">
     <Link href="/reports" class="btn c-orange"><Icon name="file" />Laporan eksekutif</Link>
-    <Link href="/ai" class="btn c-violet"><Icon name="spark" />Ringkasan AI</Link>
+    <Link v-if="$page.props.auth.user.role !== 'auditor'" href="/ai" class="btn c-violet"><Icon name="spark" />Ringkasan AI</Link>
   </PageHead>
   <div v-if="ai_summary" class="alert-box info"><Icon name="spark" /><div><b>Ringkasan eksekutif</b> <span class="hint">(otomatis, 15 menit)</span><div>{{ ai_summary }}</div></div></div>
   <div v-if="appetite_statement?.appetite_statement" class="alert-box ok"><Icon name="flag" /><div><b>Pernyataan risk appetite:</b> {{ appetite_statement.appetite_statement }}</div></div>
