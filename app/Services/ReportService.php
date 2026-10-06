@@ -6,6 +6,7 @@ use App\Models\ActionPlan;
 use App\Models\Control;
 use App\Models\Incident;
 use App\Models\Kri;
+use App\Models\OrgUnit;
 use App\Models\Risk;
 use App\Models\RiskCategory;
 use App\Models\User;
@@ -20,16 +21,71 @@ class ReportService
     public const FORMATS = ['register' => ['xlsx', 'pdf'], 'profile' => ['pdf'], 'heatmap' => ['pdf'], 'top' => ['pdf', 'xlsx'], 'action_plans' => ['xlsx', 'pdf'], 'residual' => ['xlsx', 'pdf'],
         'kri' => ['pdf', 'xlsx'], 'incidents' => ['pdf', 'xlsx'], 'trend' => ['pdf', 'xlsx'], 'controls' => ['xlsx', 'pdf'], 'overdue' => ['xlsx', 'pdf'], 'executive' => ['pdf']];
 
+    /** Filter risiko yang sama dengan Risk Register (RiskController::filtered) untuk laporan. */
+    public const RISK_FILTERS = ['q', 'unit_id', 'category_id', 'owner_id', 'objective_id', 'process_id', 'level', 'evaluation', 'status'];
+
+    /** Unit efektif: cakupan pengguna ∩ unit filter (beserta sub-unitnya); null = tanpa batas. */
+    public function unitIds(User $user, array $params): ?array
+    {
+        $units = $user->accessibleUnitIds();
+        if (!empty($params['unit_id'])) {
+            $f = OrgUnit::find($params['unit_id'])?->descendantIds() ?? [];
+            $units = $units === null ? $f : array_values(array_intersect($units, $f));
+        }
+        return $units;
+    }
+
+    public function riskQuery(User $user, array $params)
+    {
+        $units = $this->unitIds($user, $params);
+        $q = Risk::query()->when($units !== null, fn ($q) => $q->whereIn('unit_id', $units));
+        if (!empty($params['q'])) {
+            $term = '%' . addcslashes($params['q'], '%_\\') . '%';
+            $q->where(fn ($w) => $w->where('code', 'like', $term)->orWhere('name', 'like', $term)->orWhere('event', 'like', $term)->orWhere('cause', 'like', $term)->orWhere('impact', 'like', $term));
+        }
+        foreach (['level' => 'residual_level', 'evaluation' => 'evaluation'] as $k => $col) {
+            if (!empty($params[$k])) {
+                $q->whereIn($col, explode(',', $params[$k]));
+            }
+        }
+        foreach (['category_id', 'owner_id', 'objective_id', 'process_id'] as $k) {
+            if (!empty($params[$k])) {
+                $q->where($k, $params[$k]);
+            }
+        }
+        $status = $params['status'] ?? (($params['include_closed'] ?? false) ? null : 'active');
+        if ($status) {
+            $status === 'active' ? $q->where('status', '!=', 'closed') : $q->where('status', $status);
+        }
+        return $q;
+    }
+
+    /** Ringkasan filter yang dipakai, untuk kepala laporan. */
+    public function filterLabel(array $params): string
+    {
+        $names = fn ($model, $id) => $model::whereKey($id)->value('name');
+        $map = fn ($list, $v) => collect(explode(',', $v))->map(fn ($x) => $list[$x] ?? $x)->implode(', ');
+        return collect([
+            'unit_id' => fn ($v) => 'Unit: ' . ($names(OrgUnit::class, $v) ?? "#{$v}") . ' (termasuk sub-unit)',
+            'category_id' => fn ($v) => 'Kategori: ' . ($names(RiskCategory::class, $v) ?? "#{$v}"),
+            'owner_id' => fn ($v) => 'Pemilik: ' . ($names(User::class, $v) ?? "#{$v}"),
+            'objective_id' => fn ($v) => 'Sasaran: ' . ($names(\App\Models\Objective::class, $v) ?? "#{$v}"), 'process_id' => fn ($v) => 'Proses: ' . ($names(\App\Models\Process::class, $v) ?? "#{$v}"),
+            'level' => fn ($v) => 'Level: ' . $map(\App\Support\Scoring::LEVELS, $v),
+            'evaluation' => fn ($v) => 'Evaluasi: ' . $map(\App\Support\Scoring::EVALUATIONS, $v),
+            'status' => fn ($v) => 'Status: ' . ($v === 'active' ? 'Aktif (belum ditutup)' : (config('manrisk.risk_statuses')[$v] ?? $v)),
+            'q' => fn ($v) => "Kata kunci: \"{$v}\"",
+        ])->filter(fn ($f, $k) => !empty($params[$k]))->map(fn ($f, $k) => $f($params[$k]))->implode(' · ');
+    }
+
     public function data(string $type, User $user, array $params = []): array
     {
-        $risks = Risk::with(['unit:id,name', 'category:id,name,appetite,tolerance', 'owner:id,name'])->when($user->accessibleUnitIds(), fn ($q, $ids) => $q->whereIn('unit_id', $ids))
-            ->when($params['unit_id'] ?? null, fn ($q, $u) => $q->where('unit_id', $u))->when(($params['include_closed'] ?? false) ? null : true, fn ($q) => $q->where('status', '!=', 'closed'))
-            ->orderByDesc('residual_score')->get();
-        $units = $user->accessibleUnitIds();
+        $risks = $this->riskQuery($user, $params)->with(['unit:id,name', 'category:id,name,appetite,tolerance', 'owner:id,name'])->orderByDesc('residual_score')->get();
+        $units = $this->unitIds($user, $params);
         $riskIds = $risks->pluck('id');
+        // insiden & KRI mengikuti unit efektif (cakupan pengguna ∩ filter unit), bukan hanya untuk pengguna bercakupan
         $incidents = fn () => Incident::with(['risk:id,code', 'unit:id,name'])->when($units !== null, fn ($q) => $q->whereIn('unit_id', $units));
-        $kris = fn () => Kri::with(['risk:id,code', 'owner:id,name'])->when($units !== null, fn ($q) => $q->whereIn('risk_id', $riskIds));
-        $base = ['title' => self::TYPES[$type] ?? $type, 'org' => $user->organization?->name, 'generated_at' => now(), 'by' => $user->name, 'risks' => $risks, 'params' => $params];
+        $kris = fn () => Kri::with(['risk:id,code', 'owner:id,name'])->when($units !== null, fn ($q) => $q->whereIn('risk_id', Risk::query()->select('id')->whereIn('unit_id', $units)));
+        $base = ['title' => self::TYPES[$type] ?? $type, 'filter_label' => $this->filterLabel($params), 'org' => $user->organization?->name, 'generated_at' => now(), 'by' => $user->name, 'risks' => $risks, 'params' => $params];
         return match ($type) {
             'action_plans' => $base + ['plans' => ActionPlan::with(['risk:id,code,name', 'pic:id,name', 'unit:id,name'])->whereIn('risk_id', $riskIds)->orderBy('due_date')->get()->map(fn ($p) => $p->setAttribute('status_label', $p->computedStatus()))],
             'overdue' => $base + ['plans' => ActionPlan::with(['risk:id,code,name', 'pic:id,name', 'unit:id,name'])->whereIn('risk_id', $riskIds)->whereNull('cancelled_at')->where('progress', '<', 100)->where('due_date', '<', now()->startOfDay())->orderBy('due_date')->get()

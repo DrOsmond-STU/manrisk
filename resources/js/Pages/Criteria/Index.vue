@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue';
-import { Head, router, useForm, usePage } from '@inertiajs/vue3';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import PageHead from '../../Components/PageHead.vue';
 import CrudModal from '../../Components/CrudModal.vue';
 import ConfirmButton from '../../Components/ConfirmButton.vue';
@@ -44,7 +44,7 @@ const activate = (v) => { if (confirm(`Aktifkan kriteria versi ${v.version}? Sel
   </div>
   <div v-if="tab === 'taxonomy'" class="alert-box info"><Icon name="flag" /><div><b>Pernyataan risk appetite:</b> {{ appetite?.appetite_statement || 'Belum ditetapkan — isi di Pengaturan Organisasi.' }}<div v-if="appetite?.appetite_basis" class="hint">Dasar: {{ appetite.appetite_basis }} · ditetapkan {{ fmt.date(appetite.appetite_date) }}</div></div></div>
   <div v-if="tab === 'taxonomy'" class="card"><div class="card-b flush tbl-wrap"><table class="tbl"><thead><tr><th>Kategori</th><th>Deskripsi</th><th class="num">Appetite</th><th class="num">Tolerance</th><th class="num">Risiko aktif</th><th>Status</th><th></th></tr></thead><tbody>
-    <tr v-for="c in categories" :key="c.id"><td class="t-main">{{ c.name }}<div class="t-sub">{{ c.name_en }}</div></td><td class="fg2 wrap">{{ c.description }}</td><td class="num mono">{{ c.appetite }}</td><td class="num mono">{{ c.tolerance }}</td><td class="num">{{ c.risks_count }}</td><td><Pill :value="c.active ? 'active' : 'inactive'" /></td><td><span class="row" style="justify-content:flex-end"><button v-if="can.write" type="button" class="btn sm c-blue" @click="catItem = c; catModal = true">Ubah</button><ConfirmButton v-if="can.delete" :href="`/criteria/categories/${c.id}`" /></span></td></tr>
+    <tr v-for="c in categories" :key="c.id"><td class="t-main">{{ c.name }}<div class="t-sub">{{ c.name_en }}</div></td><td class="fg2 wrap">{{ c.description }}</td><td class="num mono">{{ c.appetite }}</td><td class="num mono">{{ c.tolerance }}</td><td class="num"><Link :href="`/risks?category_id=${c.id}&status=active`">{{ c.risks_count }}</Link></td><td><Pill :value="c.active ? 'active' : 'inactive'" /></td><td><span class="row" style="justify-content:flex-end"><button v-if="can.write" type="button" class="btn sm c-blue" @click="catItem = c; catModal = true">Ubah</button><ConfirmButton v-if="can.delete" :href="`/criteria/categories/${c.id}`" /></span></td></tr>
   </tbody></table></div></div>
   <CrudModal :show="catModal" :title="catItem ? 'Ubah kategori' : 'Tambah kategori'" :fields="catFields" :item="catItem" :url="catItem ? `/criteria/categories/${catItem.id}` : '/criteria/categories'" :method="catItem ? 'put' : 'post'" @close="catModal = false" />
   <Modal :show="newModal" title="Versi kriteria baru" wide @close="newModal = false">

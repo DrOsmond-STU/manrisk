@@ -17,10 +17,13 @@ class DocumentController extends Controller
 {
     public const SUBJECTS = ['risk' => \App\Models\Risk::class, 'control' => \App\Models\Control::class, 'action_plan' => \App\Models\ActionPlan::class, 'incident' => \App\Models\Incident::class, 'review' => \App\Models\Review::class, 'improvement' => \App\Models\Improvement::class];
 
+    public const SUBJECT_LABELS = ['risk' => 'Risiko', 'control' => 'Kontrol', 'action_plan' => 'Action plan', 'incident' => 'Insiden', 'review' => 'Review', 'improvement' => 'Perbaikan'];
+
     public function index(Request $request)
     {
         $this->authorize('viewAny', Document::class);
-        $f = $request->validate(['history' => ['nullable', 'integer'], 'q' => ['nullable', 'string', 'max:100'], 'type' => ['nullable', Rule::in(array_keys(config('manrisk.document_types')))], 'status' => ['nullable', Rule::in(['draft', 'review', 'approved', 'expired'])]]);
+        $f = $request->validate(['history' => ['nullable', 'integer'], 'q' => ['nullable', 'string', 'max:100'], 'type' => ['nullable', Rule::in(array_keys(config('manrisk.document_types')))], 'status' => ['nullable', Rule::in(['draft', 'review', 'approved', 'expired'])],
+            'subject_kind' => ['nullable', Rule::in(array_keys(self::SUBJECTS))], 'subject_id' => ['nullable', 'integer', 'required_with:subject_kind'], 'upload' => ['nullable', 'boolean']]);
         $q = \App\Support\UnitScope::morph(Document::with(['uploader:id,name', 'subject']), $request->user());
         if (!empty($f['q'])) {
             $q->where(fn ($w) => $w->where('title', 'like', "%{$f['q']}%")->orWhere('original_name', 'like', "%{$f['q']}%"));
@@ -34,16 +37,48 @@ class DocumentController extends Controller
                 $q->where($k, $f[$k]);
             }
         }
-        $docs = (empty($f['history']) ? $q->latest() : $q)->paginate(25)->withQueryString()->through(fn ($d) => $d->only('id', 'type', 'title', 'version', 'original_name', 'mime', 'size', 'status', 'expires_at', 'created_at', 'replaces_id', 'hash') + [
-            'uploader' => $d->uploader?->name, 'subject' => $d->subject ? ['type' => class_basename($d->subject), 'code' => $d->subject->code ?? null, 'name' => $d->subject->name ?? $d->subject->title ?? null] : null,
+        // ?subject_kind=&subject_id= → dokumen milik subjek tersebut (dan isian awal form unggah)
+        $subject = null;
+        if (!empty($f['subject_kind'])) {
+            $subject = (self::SUBJECTS[$f['subject_kind']])::find($f['subject_id']);
+            $subject = $subject && $request->user()->can('view', $subject) ? $subject : null;
+            $q->where('subject_type', $f['subject_kind'])->where('subject_id', $subject?->getKey() ?? 0);
+        }
+        $docs = (empty($f['history']) ? $q->latest() : $q)->paginate(25)->withQueryString()->through(fn ($d) => $d->only('id', 'type', 'title', 'version', 'original_name', 'mime', 'size', 'status', 'expires_at', 'created_at', 'replaces_id', 'hash', 'subject_type', 'subject_id') + [
+            'uploader' => $d->uploader?->name, 'subject' => $d->subject ? $this->subjectInfo($d->subject_type, $d->subject) : null,
             'can_delete' => $request->user()->can('delete', $d),
         ]);
         return Inertia::render('Documents/Index', [
             'documents' => $docs, 'filters' => $f,
+            'subject' => $subject ? $this->subjectInfo($f['subject_kind'], $subject) : null,
             'stats' => $this->stats($request),
-            'risks' => $this->riskOptions(),
+            'subject_labels' => self::SUBJECT_LABELS,
+            'subject_options' => $request->user()->can('create', Document::class) ? $this->subjectOptions($request) : [],
             'can' => ['write' => $request->user()->can('create', Document::class)],
         ]);
+    }
+
+    /** Label & tautan subjek dokumen (alias morph, kode, nama). */
+    private function subjectInfo(string $type, $s): array
+    {
+        return ['type' => $type, 'id' => $s->getKey(), 'label' => self::SUBJECT_LABELS[$type] ?? $type, 'code' => $s->code ?? ($type === 'review' ? $s->period : null),
+            'name' => $s->name ?? $s->title ?? null, 'risk_id' => $s->risk_id ?? null, 'subject_type' => $type === 'improvement' ? $s->subject_type : null, 'subject_id' => $type === 'improvement' ? $s->subject_id : null];
+    }
+
+    /** Pilihan subjek per jenis untuk form unggah, dibatasi cakupan unit pengguna. */
+    private function subjectOptions(Request $request): array
+    {
+        $user = $request->user();
+        $ids = $user->accessibleUnitIds();
+        $risks = fn () => \App\Support\UnitScope::riskIdsQuery($user);
+        $opt = fn ($rows, $label = 'name') => $rows->map(fn ($r) => ['id' => $r->id, 'name' => trim("{$r->code} · {$r->$label}")])->values()->all();
+        return [
+            'risk' => collect($this->riskOptions())->map(fn ($r) => ['id' => $r->id, 'name' => "{$r->code} · {$r->name}"])->all(),
+            'control' => $opt(\App\Models\Control::query()->when($ids !== null, fn ($q) => $q->where(fn ($w) => $w->whereNull('unit_id')->orWhereIn('unit_id', $ids)->orWhereHas('risks', fn ($r) => $r->whereIn('unit_id', $ids))))->orderBy('code')->get(['id', 'code', 'name'])),
+            'action_plan' => $opt(\App\Models\ActionPlan::query()->whereNull('cancelled_at')->when($ids !== null, fn ($q) => $q->where(fn ($w) => $w->whereIn('unit_id', $ids)->orWhereIn('risk_id', $risks())->orWhere('pic_id', $user->id)))->orderBy('code')->get(['id', 'code', 'title']), 'title'),
+            'incident' => $opt($this->scopeUnits(\App\Models\Incident::query())->orderByDesc('occurred_at')->get(['id', 'code', 'title']), 'title'),
+            'improvement' => $opt(\App\Models\Improvement::query()->when($ids !== null, fn ($q) => $q->where(fn ($w) => $w->whereIn('unit_id', $ids)->orWhereIn('risk_id', $risks())->orWhere('pic_id', $user->id)->orWhere(fn ($x) => $x->whereNull('unit_id')->whereNull('risk_id'))))->orderBy('code')->get(['id', 'code', 'title']), 'title'),
+        ];
     }
 
     public function store(Request $request)

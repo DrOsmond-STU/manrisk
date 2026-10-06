@@ -19,7 +19,8 @@ class CriteriaController extends Controller
         $this->authorize('viewAny', CriteriaVersion::class);
         return Inertia::render('Criteria/Index', [
             'versions' => CriteriaVersion::with('creator:id,name')->orderByDesc('version')->get(),
-            'categories' => RiskCategory::withCount(['risks' => fn ($q) => $q->where('status', '!=', 'closed')])->orderBy('sort')->get(),
+            // Jumlah risiko mengikuti cakupan unit pengguna agar sama dengan daftar yang dibuka lewat tautannya
+            'categories' => RiskCategory::withCount(['risks' => fn ($q) => $this->scopeUnits($q)->where('status', '!=', 'closed')])->orderBy('sort')->get(),
             'default_matrix' => Scoring::defaultMatrix(),
             'appetite' => collect(auth()->user()->organization?->settings ?? [])->only('appetite_statement', 'appetite_basis', 'appetite_date'),
             'can' => ['write' => auth()->user()->can('create', CriteriaVersion::class), 'delete' => auth()->user()->can('delete', new RiskCategory())],
@@ -78,11 +79,19 @@ class CriteriaController extends Controller
 
     private function recalculateAll(): void
     {
-        $scoring = new Scoring(CriteriaVersion::current());
-        Risk::with('category')->chunkById(200, function ($risks) use ($scoring) {
+        $criteria = CriteriaVersion::current();
+        $scoring = new Scoring($criteria);
+        Risk::with('category')->chunkById(200, function ($risks) use ($scoring, $criteria) {
             foreach ($risks as $r) {
+                $before = $r->only('residual_score', 'residual_level', 'evaluation');
                 $scoring->apply($r);
+                $r->criteria_version_id = $criteria?->id;
+                $after = $r->only('residual_score', 'residual_level', 'evaluation');
                 $r->saveQuietly();
+                if ($before !== $after) {
+                    // Jejak perubahan level/evaluasi akibat kriteria baru (tanpa versi penilaian baru)
+                    \App\Models\AuditLog::record('recalculated', $r, collect($after)->filter(fn ($v, $k) => $before[$k] !== $v)->map(fn ($v, $k) => [$before[$k], $v])->all(), 'criteria:v' . $criteria?->version);
+                }
             }
         });
     }

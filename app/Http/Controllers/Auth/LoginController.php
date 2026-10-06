@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\AuthLog;
 use App\Models\User;
+use App\Support\Mfa;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -20,6 +21,7 @@ use Inertia\Response;
  * Tiga lapis pembatas: email+IP (5 gagal → kunci 15 menit), email saja (10 gagal, tahan
  * terhadap rotasi IP), dan IP saja (30 gagal, tahan terhadap penebakan banyak akun).
  * Waktu respons dibuat seragam untuk email terdaftar maupun tidak (anti-enumerasi).
+ * Bila MFA berlaku, login baru selesai setelah kode OTP email diverifikasi (MfaController).
  * Tidak ada "ingat saya" agar batas sesi absolut 8 jam tidak dapat dilewati.
  */
 class LoginController extends Controller
@@ -69,15 +71,38 @@ class LoginController extends Controller
                 RateLimiter::clear($key);
             }
         }
-        Auth::login($user);
-        $request->session()->regenerate();
-        $request->session()->regenerateToken();
-        $request->session()->put(['mr_login_at' => now()->timestamp, 'mr_last_activity' => now()->timestamp]);
         if (Hash::needsRehash($user->password)) {
             $user->forceFill(['password' => $data['password']])->saveQuietly();
         }
-        $user->forceFill(['last_login_at' => now(), 'last_login_ip' => $ip])->saveQuietly();
-        AuthLog::write('login_success', $email, $user);
+
+        // Langkah kedua: kode OTP via email bila MFA berlaku dan perangkat belum tepercaya
+        if (Mfa::active($user)) {
+            if (Mfa::isTrusted($user, $request)) {
+                return self::finish($request, $user, 'trusted_device');
+            }
+            $request->session()->regenerate();
+            $request->session()->put('mfa_pending', ['id' => $user->id, 'at' => now()->timestamp]);
+            $sent = Mfa::send($user, Mfa::PURPOSE_LOGIN);
+            AuthLog::write('mfa_challenge', $email, $user, $sent['ok'] ? 'code_sent' : ($sent['reason'] ?? 'send_failed'));
+            if (($sent['reason'] ?? null) === 'cooldown') {
+                // Kode sebelumnya masih berlaku; jangan kirim ulang terlalu cepat
+                return redirect()->route('mfa.challenge')->with('status', 'Kode verifikasi sudah dikirim sebelumnya. Periksa email Anda.');
+            }
+            return redirect()->route('mfa.challenge')->with($sent['ok'] ? 'status' : 'error', $sent['message']);
+        }
+        return self::finish($request, $user, 'password');
+    }
+
+    /** Selesaikan login setelah semua faktor terverifikasi. */
+    public static function finish(Request $request, User $user, string $via): RedirectResponse
+    {
+        Auth::login($user);
+        $request->session()->forget('mfa_pending');
+        $request->session()->regenerate();
+        $request->session()->regenerateToken();
+        $request->session()->put(['mr_login_at' => now()->timestamp, 'mr_last_activity' => now()->timestamp]);
+        $user->forceFill(['last_login_at' => now(), 'last_login_ip' => (string) $request->ip()])->saveQuietly();
+        AuthLog::write('login_success', $user->email, $user, $via === 'password' ? null : "via={$via}");
 
         if ($user->must_change_password) {
             return redirect()->route('password.edit')->with('warning', 'Anda wajib mengganti kata sandi sebelum melanjutkan.');

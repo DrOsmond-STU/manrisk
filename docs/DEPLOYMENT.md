@@ -39,6 +39,15 @@ Git Version Control cPanel (deployment `manrisk.semestateknologiutama.com` → `
 - Antivirus unggahan opsional: isi `MR_CLAMAV_PATH` (mis. `/usr/bin/clamscan`) bila tersedia di server.
 - Verifikasi penyelesaian action plan oleh Risk Owner: `MR_PLAN_VERIFICATION=true` (bawaan).
 
+## Email (SMTP) & verifikasi dua langkah (MFA)
+
+1. Buat akun email pengirim di cPanel → *Email Accounts* (mis. `noreply@semestateknologiutama.com`).
+2. Masuk sebagai Super Admin → **Administrasi → Email & SMTP**: host `mail.semestateknologiutama.com`, port `465` (SSL/TLS) atau `587` (STARTTLS), nama pengguna = alamat email lengkap, sandi akun email, alamat pengirim = akun yang sama. Simpan, lalu **Kirim email uji**. Sandi SMTP disimpan terenkripsi dengan `APP_KEY` (bila `APP_KEY` diganti, isi ulang sandi SMTP). Pengaturan ini menggantikan `MAIL_*` di `.env`; bila dinonaktifkan, `MAIL_*` yang berlaku.
+3. **Pengaturan Organisasi → Verifikasi dua langkah**: pilih peran yang wajib MFA (disarankan minimal Super Admin & Risk Administrator) dan masa perangkat tepercaya (0/7/30 hari). Kebijakan hanya dapat diaktifkan bila email siap mengirim; email juga tidak dapat dimatikan selama MFA dipakai.
+4. Pengguna lain dapat mengaktifkan MFA sendiri di **Profil**, dan setiap pengguna MFA sebaiknya membuat **kode pemulihan** (10 kode sekali pakai) di Profil.
+5. Alur login: sandi benar → kode 6 digit dikirim ke email (berlaku `MR_MFA_CODE_TTL` menit, bawaan 10) → maks. 5 percobaan per kode, 10 kegagalan/15 menit per akun mengakhiri proses login, maks. 5 kode/15 menit per akun, kirim ulang setelah 60 detik.
+6. Pemulihan darurat: Super Admin dapat **Reset MFA** di halaman Pengguna; bila Super Admin sendiri terkunci, jalankan di server `php artisan manrisk:mfa-reset <email>`. Bila pengguna kehilangan akses email, ubah alamat emailnya (perangkat tepercaya otomatis dicabut).
+
 ## Upgrade rilis
 
 1. Bangun ulang cabang `deploy/hosting` dari `main` (vendor tanpa paket dev, `installed.json` tanpa paket dev, build Vite).

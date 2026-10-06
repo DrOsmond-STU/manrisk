@@ -18,7 +18,7 @@ class ImportController extends Controller
     public function show(Request $request, string $type)
     {
         $this->guard($request, $type);
-        return Inertia::render('Imports/Index', ['type' => $type, 'columns' => $type === 'kri' ? ImportService::KRI_COLUMNS : ImportService::RISK_COLUMNS, 'max' => ImportService::MAX_ROWS]);
+        return $this->render($type);
     }
 
     public function template(Request $request, string $type, ImportService $svc)
@@ -38,9 +38,23 @@ class ImportController extends Controller
         }
         $result = $type === 'kri' ? $svc->validateKri($rows, $request->user()) : $svc->validateRisks($rows, $request->user());
         $token = Str::random(40);
-        Cache::put("import:{$request->user()->id}:{$token}", ['type' => $type, 'valid' => $result['valid']], now()->addMinutes(30));
-        return Inertia::render('Imports/Index', ['type' => $type, 'columns' => $type === 'kri' ? ImportService::KRI_COLUMNS : ImportService::RISK_COLUMNS, 'max' => ImportService::MAX_ROWS,
-            'preview' => ['token' => $token, 'total' => count($rows), 'valid' => array_map(fn ($v) => ['line' => $v['line'], 'name' => $v['data']['name'] ?? $v['preview']['kri'], 'preview' => $v['preview']], $result['valid']), 'errors' => $result['errors']]]);
+        $preview = ['token' => $token, 'total' => count($rows), 'valid' => array_map(fn ($v) => ['line' => $v['line'], 'name' => $v['data']['name'] ?? $v['preview']['kri'], 'preview' => $v['preview']], $result['valid']), 'errors' => $result['errors']];
+        Cache::put("import:{$request->user()->id}:{$token}", ['type' => $type, 'valid' => $result['valid'], 'preview' => $preview], now()->addMinutes(30));
+        // token disimpan di sesi agar muat ulang (GET .../preview) menampilkan pratinjau yang sama, bukan 405
+        session()->put("import_preview.{$type}", $token);
+        return $this->render($type, $preview);
+    }
+
+    /** Muat ulang pratinjau dari token di sesi (pratinjau awal dirender langsung dari POST unggahan). */
+    public function showPreview(Request $request, string $type)
+    {
+        $this->guard($request, $type);
+        $token = session("import_preview.{$type}");
+        $data = $token ? Cache::get("import:{$request->user()->id}:{$token}") : null;
+        if (!$data || $data['type'] !== $type || empty($data['preview'])) {
+            return redirect()->route('imports.show', $type)->with('error', 'Pratinjau kedaluwarsa. Unggah ulang berkas.');
+        }
+        return $this->render($type, $data['preview']);
     }
 
     public function commit(Request $request, string $type, ImportService $svc, AlertService $alerts)
@@ -48,12 +62,25 @@ class ImportController extends Controller
         $this->guard($request, $type);
         $token = $request->validate(['token' => ['required', 'string', 'size:40']])['token'];
         $data = Cache::pull("import:{$request->user()->id}:{$token}");
+        session()->forget("import_preview.{$type}");
         if (!$data || $data['type'] !== $type || !$data['valid']) {
             return redirect()->route('imports.show', $type)->with('error', 'Pratinjau kedaluwarsa atau tidak ada baris valid. Unggah ulang berkas.');
         }
-        $n = $type === 'kri' ? $svc->commitKri($data['valid'], $request->user(), $alerts) : $svc->commitRisks($data['valid'], $request->user());
-        \App\Models\AuditLog::record('imported', $request->user(), ['rows' => [null, $n], 'type' => [null, $type]], 'imports.commit');
-        return redirect()->route($type === 'kri' ? 'kris.index' : 'risks.index', $type === 'kri' ? [] : ['status' => 'draft'])->with('success', "{$n} baris berhasil diimpor.");
+        if ($type === 'kri') {
+            $n = $svc->commitKri($data['valid'], $request->user(), $alerts);
+            $codes = Kri::whereIn('id', array_unique(array_column(array_column($data['valid'], 'data'), 'kri_id')))->orderBy('code')->pluck('code');
+            \App\Models\AuditLog::record('imported', $request->user(), ['rows' => [null, $n], 'type' => [null, $type]], 'imports.commit');
+            return redirect()->route('kris.index')->with('success', "{$n} nilai KRI berhasil diimpor untuk {$codes->count()} KRI: " . $codes->take(20)->implode(', ') . ($codes->count() > 20 ? ', …' : '') . '.');
+        }
+        $ids = $svc->commitRisks($data['valid'], $request->user());
+        \App\Models\AuditLog::record('imported', $request->user(), ['rows' => [null, count($ids)], 'type' => [null, $type]], 'imports.commit');
+        // tampilkan tepat risiko hasil impor di Risk Register
+        return redirect()->route('risks.index', ['ids' => implode(',', array_slice($ids, 0, 500))])->with('success', count($ids) . ' risiko berhasil diimpor sebagai draft.');
+    }
+
+    private function render(string $type, ?array $preview = null)
+    {
+        return Inertia::render('Imports/Index', ['type' => $type, 'columns' => $type === 'kri' ? ImportService::KRI_COLUMNS : ImportService::RISK_COLUMNS, 'max' => ImportService::MAX_ROWS] + ($preview ? ['preview' => $preview] : []));
     }
 
     private function guard(Request $request, string $type): void

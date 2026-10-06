@@ -140,11 +140,12 @@ class ImportService
         return ['valid' => $valid, 'errors' => $errors];
     }
 
-    public function commitRisks(array $valid, User $user): int
+    /** Simpan baris valid sebagai risiko draft; mengembalikan id risiko yang dibuat. */
+    public function commitRisks(array $valid, User $user): array
     {
         $criteria = CriteriaVersion::current();
         return DB::transaction(function () use ($valid, $user, $criteria) {
-            $n = 0;
+            $ids = [];
             foreach ($valid as $row) {
                 $risk = new Risk($row['data']);
                 $risk->code = Numbering::next(Risk::class, 'R');
@@ -157,9 +158,9 @@ class ImportService
                 $risk->save();
                 RiskVersion::create(['risk_id' => $risk->id, 'version' => 1, 'inherent_l' => $risk->inherent_l, 'inherent_i' => $risk->inherent_i, 'residual_l' => $risk->residual_l, 'residual_i' => $risk->residual_i,
                     'target_l' => $risk->target_l, 'target_i' => $risk->target_i, 'snapshot' => $risk->only('name', 'cause', 'event', 'impact'), 'note' => 'Impor Excel', 'created_by' => $user->id]);
-                $n++;
+                $ids[] = $risk->id;
             }
-            return $n;
+            return $ids;
         });
     }
 

@@ -14,6 +14,8 @@ class ApprovalController extends Controller
     {
         $this->authorize('viewAny', Approval::class);
         $user = $request->user();
+        // Penelusuran dari menu lain: satu pengajuan (?id=) atau semua pengajuan sebuah risiko (?risk_id=)
+        $focus = $request->validate(['id' => ['nullable', 'integer'], 'risk_id' => ['nullable', 'integer']]);
         $all = \App\Support\UnitScope::morph(Approval::query(), $user, false)->with(['steps.approver:id,name', 'requester:id,name', 'subject'])->latest()->limit(500)->get();
         $mine = $all->filter(fn ($a) => $a->status === 'pending' && $a->requester_id !== $user->id && ($s = $a->steps->firstWhere('step_no', $a->current_step)) && ($s->role === $user->role || $user->role === 'super_admin'));
         $map = fn ($a) => [
@@ -23,7 +25,9 @@ class ApprovalController extends Controller
             'steps' => $a->steps->sortBy('step_no')->values()->map(fn ($s) => ['step_no' => $s->step_no, 'role' => \App\Models\User::ROLES[$s->role] ?? $s->role, 'action' => $s->action, 'note' => $s->note, 'acted_at' => $s->acted_at, 'due_at' => $s->due_at, 'approver' => $s->approver?->name]),
             'can_decide' => $user->can('decide', $a),
         ];
+        $found = !empty($focus['id']) ? $all->where('id', (int) $focus['id']) : (!empty($focus['risk_id']) ? $all->where('subject_type', 'risk')->where('subject_id', (int) $focus['risk_id']) : null);
         return Inertia::render('Approvals/Index', [
+            'focus' => $found === null ? null : ['label' => !empty($focus['id']) ? 'Pengajuan terpilih' : 'Pengajuan risiko ' . ($found->first()?->subject?->code ?? ''), 'items' => $found->values()->map($map)],
             'inbox' => $mine->values()->map($map),
             'requested' => $all->where('requester_id', $user->id)->values()->map($map),
             'history' => $all->whereIn('status', ['approved', 'rejected', 'revision'])->take(100)->values()->map($map),

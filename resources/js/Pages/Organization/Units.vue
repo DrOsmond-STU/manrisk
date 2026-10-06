@@ -3,8 +3,7 @@ import { computed, ref } from 'vue';
 import { Head, usePage } from '@inertiajs/vue3';
 import PageHead from '../../Components/PageHead.vue';
 import CrudModal from '../../Components/CrudModal.vue';
-import ConfirmButton from '../../Components/ConfirmButton.vue';
-import Pill from '../../Components/Pill.vue';
+import UnitNode from '../../Components/UnitNode.vue';
 const props = defineProps({ units: Array, users: Array, can: Object });
 const L = usePage().props.labels;
 const modal = ref(false); const item = ref(null);
@@ -23,16 +22,7 @@ const open = (u) => { item.value = u; modal.value = true; };
     <button v-if="can.write" type="button" class="btn c-green" @click="open(null)"><Icon name="plus" />Tambah unit</button>
   </PageHead>
   <div class="card"><div class="card-b">
-    <ul class="tree">
-      <template v-for="n in tree" :key="n.id"><li>
-        <div class="tnode"><Icon name="users" /><b>{{ n.name }}</b><span class="mono muted">{{ n.code }}</span><span class="pill">{{ L.unit_types[n.type] }}</span><span v-if="n.head" class="hint">Kepala: {{ n.head }}</span><span class="pill run">{{ n.risks_count }} risiko</span><Pill v-if="!n.active" value="inactive" /><span style="margin-left:auto" class="row"><button v-if="can.write" type="button" class="btn sm c-blue" @click="open(n)">Ubah</button><ConfirmButton v-if="can.write" :href="`/organization/units/${n.id}`" message="Hapus unit ini?" /></span></div>
-        <ul v-if="n.children.length"><template v-for="c in n.children" :key="c.id"><li>
-          <div class="tnode"><Icon name="users" /><b>{{ c.name }}</b><span class="mono muted">{{ c.code }}</span><span class="pill">{{ L.unit_types[c.type] }}</span><span v-if="c.head" class="hint">Kepala: {{ c.head }}</span><span class="pill run">{{ c.risks_count }} risiko</span><Pill v-if="!c.active" value="inactive" /><span style="margin-left:auto" class="row"><button v-if="can.write" type="button" class="btn sm c-blue" @click="open(c)">Ubah</button><ConfirmButton v-if="can.write" :href="`/organization/units/${c.id}`" message="Hapus unit ini?" /></span></div>
-          <ul v-if="c.children.length"><li v-for="g in c.children" :key="g.id"><div class="tnode"><Icon name="users" /><b>{{ g.name }}</b><span class="mono muted">{{ g.code }}</span><span class="pill">{{ L.unit_types[g.type] }}</span><span class="pill run">{{ g.risks_count }} risiko</span><span style="margin-left:auto" class="row"><button v-if="can.write" type="button" class="btn sm c-blue" @click="open(g)">Ubah</button><ConfirmButton v-if="can.write" :href="`/organization/units/${g.id}`" message="Hapus unit ini?" /></span></div>
-            <ul v-if="g.children.length"><li v-for="h in g.children" :key="h.id"><div class="tnode"><Icon name="users" /><b>{{ h.name }}</b><span class="mono muted">{{ h.code }}</span><span class="pill run">{{ h.risks_count }} risiko</span><span style="margin-left:auto" class="row"><button v-if="can.write" type="button" class="btn sm c-blue" @click="open(h)">Ubah</button><ConfirmButton v-if="can.write" :href="`/organization/units/${h.id}`" message="Hapus unit ini?" /></span></div></li></ul></li></ul>
-        </li></template></ul>
-      </li></template>
-    </ul>
+    <ul class="tree"><UnitNode v-for="n in tree" :key="n.id" :node="n" :can-write="can.write" @edit="open" /></ul>
     <div v-if="!tree.length" class="empty">Belum ada unit kerja.</div>
   </div></div>
   <CrudModal :show="modal" :title="item ? 'Ubah unit' : 'Tambah unit'" :fields="fields" :item="item" :url="item ? `/organization/units/${item.id}` : '/organization/units'" :method="item ? 'put' : 'post'" @close="modal = false" />

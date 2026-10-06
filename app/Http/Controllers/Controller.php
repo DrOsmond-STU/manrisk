@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
 
@@ -11,7 +12,7 @@ abstract class Controller
     use AuthorizesRequests;
 
     /** Batasi query ke unit yang boleh diakses pengguna bercakupan unit. */
-    protected function scopeUnits(Builder $query, string $column = 'unit_id', ?Request $request = null): Builder
+    protected function scopeUnits(Builder|Relation $query, string $column = 'unit_id', ?Request $request = null): Builder|Relation
     {
         $user = ($request ?? request())->user();
         $ids = $user?->accessibleUnitIds();
