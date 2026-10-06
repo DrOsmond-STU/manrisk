@@ -16,10 +16,12 @@ class ObjectiveController extends Controller
     {
         $this->authorize('viewAny', Objective::class);
         return Inertia::render('Organization/Objectives', [
-            'objectives' => Objective::withCount(['risks' => fn ($q) => $q->where('status', '!=', 'closed')])->with(['risks' => fn ($q) => $q->where('status', '!=', 'closed')->select('id', 'objective_id', 'residual_score', 'residual_level')])->orderBy('sort')->orderBy('code')->get()
+            // Jumlah risiko mengikuti cakupan unit pengguna agar sama dengan daftar di Risk Register
+            'objectives' => Objective::withCount(['risks' => fn ($q) => $this->scopeUnits($q)->where('status', '!=', 'closed')])->with(['risks' => fn ($q) => $this->scopeUnits($q)->where('status', '!=', 'closed')->select('id', 'objective_id', 'unit_id', 'residual_score', 'residual_level')])->orderBy('sort')->orderBy('code')->get()
                 ->map(fn ($o) => $o->only('id', 'code', 'name', 'kpi', 'period', 'sort', 'active', 'risks_count') + ['max_score' => (int) $o->risks->max('residual_score'), 'high' => $o->risks->whereIn('residual_level', ['high', 'very_high'])->count()]),
             'programs' => Program::with(['objective:id,code,name', 'unit:id,name'])->withCount('processes')->orderBy('name')->get(),
-            'processes' => Process::with(['program:id,name', 'unit:id,name'])->withCount(['risks' => fn ($q) => $q->where('status', '!=', 'closed')])->orderBy('name')->get(),
+            'processes' => Process::with(['program:id,name', 'unit:id,name'])->withCount(['risks' => fn ($q) => $this->scopeUnits($q)->where('status', '!=', 'closed')])->orderBy('name')->get(),
+            'can_create_risk' => auth()->user()->can('create', \App\Models\Risk::class),
             'units' => $this->unitOptions(),
             'can' => ['write' => auth()->user()->can('create', Objective::class), 'delete' => auth()->user()->can('delete', new Objective())],
         ]);
@@ -79,6 +81,9 @@ class ObjectiveController extends Controller
     public function destroyProgram(Program $program)
     {
         $this->authorize('delete', $program);
+        if ($program->processes()->exists()) {
+            return back()->with('error', 'Program masih memiliki proses bisnis; pindahkan atau hapus prosesnya dahulu.');
+        }
         $program->delete();
         return $this->ok('Program dihapus.');
     }

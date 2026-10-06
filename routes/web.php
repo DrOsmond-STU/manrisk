@@ -95,6 +95,7 @@ Route::middleware(['auth', 'session.policy', 'password.fresh', 'throttle:app'])-
     Route::get('/import/{type}', [\App\Http\Controllers\ImportController::class, 'show'])->name('imports.show');
     Route::get('/import/{type}/template', [\App\Http\Controllers\ImportController::class, 'template'])->name('imports.template');
     Route::post('/import/{type}/preview', [\App\Http\Controllers\ImportController::class, 'preview'])->middleware('throttle:20,1')->name('imports.preview');
+    Route::get('/import/{type}/preview', [\App\Http\Controllers\ImportController::class, 'showPreview'])->name('imports.preview.show');
     Route::post('/import/{type}/commit', [\App\Http\Controllers\ImportController::class, 'commit'])->middleware('throttle:20,1')->name('imports.commit');
     Route::resource('risks', RiskController::class);
     Route::post('/risks/{risk}/submit', [RiskController::class, 'submit'])->name('risks.submit');
@@ -156,6 +157,7 @@ Route::middleware(['auth', 'session.policy', 'password.fresh', 'throttle:app'])-
     Route::get('/alerts/latest', [AlertController::class, 'latest'])->name('alerts.latest');
     Route::post('/alerts/read-all', [AlertController::class, 'readAll'])->name('alerts.read-all');
     Route::post('/alerts/{alert}/read', [AlertController::class, 'read'])->name('alerts.read');
+    Route::get('/alerts/{alert}/open', [AlertController::class, 'open'])->name('alerts.open');
     Route::post('/alerts/{alert}/handle', [AlertController::class, 'handle'])->name('alerts.handle');
 
     // Laporan & AI

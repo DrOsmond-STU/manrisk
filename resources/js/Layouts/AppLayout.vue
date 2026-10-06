@@ -50,7 +50,7 @@ router.on('navigate', () => { navOpen.value = false; menuOpen.value = false; });
         <form class="search" role="search" @submit.prevent="search"><span class="muted"><Icon name="search" /></span><input v-model="q" type="search" placeholder="Cari risiko (kode/nama)…" aria-label="Pencarian risiko"></form>
         <div class="top-ctx">
           <button class="icon-btn c-indigo" aria-label="Ganti tema terang/gelap" @click="toggleTheme"><Icon name="moon" /></button>
-          <Link class="icon-btn c-orange" href="/alerts" aria-label="Peringatan dini"><Icon name="bell" /><span v-if="badges.alerts" class="dot">{{ badges.alerts }}</span></Link>
+          <Link class="icon-btn c-orange" :href="badges.alerts ? '/alerts?unread=1' : '/alerts'" aria-label="Peringatan dini"><Icon name="bell" /><span v-if="badges.alerts" class="dot">{{ badges.alerts }}</span></Link>
           <Link v-if="user?.role !== 'auditor'" class="icon-btn c-violet" href="/ai" aria-label="AI Risk Assistant"><Icon name="spark" /></Link>
           <button type="button" class="user u-btn" aria-haspopup="menu" :aria-expanded="menuOpen" @click="menuOpen = !menuOpen"><span class="avatar">{{ fmt.initials(user?.name) }}</span><span class="u-txt"><b>{{ user?.name }}</b><br><span class="muted">{{ user?.role_label }}</span></span></button>
         </div>

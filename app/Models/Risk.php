@@ -123,6 +123,11 @@ class Risk extends Model
         return $this->hasMany(Kri::class);
     }
 
+    public function improvements(): HasMany
+    {
+        return $this->hasMany(Improvement::class);
+    }
+
     public function incidents(): HasMany
     {
         return $this->hasMany(Incident::class);

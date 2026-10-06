@@ -53,7 +53,10 @@ const dims = props.criteria?.dimensions || [];
 const lvOf = (l, i) => (matrix && matrix[`${l}-${i}`]) || lvFromScore(l * i);
 const cat = computed(() => props.categories.find((c) => c.id == form.category_id));
 const score = (l, i) => Number(l) * Number(i);
-const evalOf = (s) => { if (s >= 20) return 'critical'; if (s >= 16) return 'escalate'; if (!cat.value) return 'monitor'; if (s > cat.value.tolerance) return 'treat'; if (s > cat.value.appetite) return 'monitor'; return 'acceptable'; };
+const TH = { escalate: props.criteria?.thresholds?.escalate ?? 16, critical: props.criteria?.thresholds?.critical ?? 20 };
+// Proses bisnis disaring sesuai unit terpilih (proses tanpa unit tetap ditampilkan)
+const unitProcesses = computed(() => props.processes.filter((p) => !form.unit_id || !p.unit_id || p.unit_id == form.unit_id || p.id == form.process_id));
+const evalOf = (s) => { if (s >= TH.critical) return 'critical'; if (s >= TH.escalate) return 'escalate'; if (!cat.value) return 'monitor'; if (s > cat.value.tolerance) return 'treat'; if (s > cat.value.appetite) return 'monitor'; return 'acceptable'; };
 const pick = (prefix, key, l, i) => { form[`${prefix}_l`] = l; form[`${prefix}_i`] = i; };
 const dimChange = (prefix) => { const vals = Object.values(form[`${prefix}_dims`] || {}).map(Number).filter((v) => v >= 1 && v <= 5); if (vals.length) form[`${prefix}_i`] = Math.max(...vals); };
 const statement = computed(() => (form.cause && form.event && form.impact) ? `Karena ${form.cause.trim().replace(/\.$/, '')}, dapat terjadi ${form.event.trim().replace(/\.$/, '')}, sehingga menyebabkan ${form.impact.trim().replace(/\.$/, '')}.` : '');
@@ -80,7 +83,7 @@ const firstErrorStep = () => { const e = Object.keys(form.errors); if (!e.length
       <Field v-model="form.owner_id" type="select" label="Risk owner" :options="owners" required :error="form.errors.owner_id" />
       <Field v-model="form.category_id" type="select" label="Kategori (taksonomi)" :options="categories" required :error="form.errors.category_id" :hint="cat ? `Appetite ${cat.appetite} · Tolerance ${cat.tolerance}` : ''" />
       <Field v-model="form.objective_id" type="select" label="Sasaran strategis terkait" :options="objectives.map((o) => ({ id: o.id, name: `${o.code} · ${o.name}` }))" :error="form.errors.objective_id" />
-      <Field v-model="form.process_id" type="select" label="Proses bisnis" :options="processes" :error="form.errors.process_id" />
+      <Field v-model="form.process_id" type="select" label="Proses bisnis" :options="unitProcesses" :error="form.errors.process_id" />
       <div class="row" style="gap:12px"><Field v-model="form.source_type" type="select" label="Sumber" :options="{ internal: 'Internal', external: 'Eksternal' }" empty="" required style="flex:1" /><Field v-model="form.source_kind" type="select" label="Jenis sumber" :options="L.source_kinds" empty="" required style="flex:1" :error="form.errors.source_kind" /></div>
       <div v-if="ai && !edit" class="field span"><label>Susun pernyataan dari catatan bebas (opsional)</label><div class="row" style="gap:8px"><input v-model="aiNote" class="inp" style="flex:1" maxlength="2000" placeholder="mis. server tunggal tanpa cadangan, kalau mati layanan perizinan berhenti dan masyarakat komplain"><button type="button" class="btn c-violet" :disabled="aiBusy" @click="aiStatement"><Icon name="spark" />Susun</button></div></div>
       <Field v-model="form.cause" type="textarea" label="Penyebab (karena…)" required span :error="form.errors.cause" :rows="2" maxlength="2000" />
@@ -102,7 +105,7 @@ const firstErrorStep = () => { const e = Object.keys(form.errors); if (!e.length
     </div>
 
     <div v-show="step === 3" class="card"><div class="card-h"><h3>3. Evaluasi & treatment</h3><span class="sub">ISO 31000 §6.4.4 – §6.5</span></div><div class="card-b form-grid">
-      <div class="alert-box" style="grid-column:1/-1" :class="{ ok: evalOf(score(form.residual_l, form.residual_i)) === 'acceptable', info: evalOf(score(form.residual_l, form.residual_i)) === 'monitor', warn: evalOf(score(form.residual_l, form.residual_i)) === 'treat', bad: ['escalate', 'critical'].includes(evalOf(score(form.residual_l, form.residual_i))) }"><Icon name="scale" /><span>Skor residual <b>{{ score(form.residual_l, form.residual_i) }}</b> {{ cat ? `dibandingkan appetite ${cat.appetite} dan tolerance ${cat.tolerance} kategori ${cat.name}` : '' }} → status evaluasi <b>{{ L.evaluations[evalOf(score(form.residual_l, form.residual_i))] }}</b>.{{ score(form.residual_l, form.residual_i) >= 16 ? ' Persetujuan wajib sampai Management.' : '' }}</span></div>
+      <div class="alert-box" style="grid-column:1/-1" :class="{ ok: evalOf(score(form.residual_l, form.residual_i)) === 'acceptable', info: evalOf(score(form.residual_l, form.residual_i)) === 'monitor', warn: evalOf(score(form.residual_l, form.residual_i)) === 'treat', bad: ['escalate', 'critical'].includes(evalOf(score(form.residual_l, form.residual_i))) }"><Icon name="scale" /><span>Skor residual <b>{{ score(form.residual_l, form.residual_i) }}</b> {{ cat ? `dibandingkan appetite ${cat.appetite} dan tolerance ${cat.tolerance} kategori ${cat.name}` : '' }} → status evaluasi <b>{{ L.evaluations[evalOf(score(form.residual_l, form.residual_i))] }}</b>.{{ score(form.residual_l, form.residual_i) >= TH.escalate ? ' Persetujuan wajib sampai Management.' : '' }}</span></div>
       <Field v-model="form.treatment" type="select" label="Opsi treatment" :options="L.treatments" empty="" required :error="form.errors.treatment" />
       <Field v-model="form.due_date" type="date" label="Target penyelesaian treatment" :error="form.errors.due_date" />
       <Field v-model="form.treatment_note" type="textarea" label="Rencana / catatan treatment" span :rows="3" maxlength="4000" />

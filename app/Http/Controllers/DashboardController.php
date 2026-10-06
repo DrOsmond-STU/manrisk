@@ -43,7 +43,8 @@ class DashboardController extends Controller
         $trend = RiskSnapshot::whereIn('period', $periods)->whereIn('risk_id', $riskIds)->selectRaw('period, avg(residual_score) as avg_score, count(*) as n')->groupBy('period')->orderBy('period')->get()->keyBy('period');
         $metrics = $this->metrics($risks);
         $kriBreach = $this->scopedKris()->where('active', true)->whereIn('status', ['warning', 'critical'])->count();
-        $group = fn ($key, $label) => $risks->filter(fn ($r) => $r->{$key})->groupBy(fn ($r) => $label($r))->map(fn ($g, $k) => ['name' => $k, 'n' => $g->count(), 'high' => $g->whereIn('residual_level', ['high', 'very_high'])->count()])->sortByDesc('n')->take(8)->values();
+        // id ikut dikirim agar batang grafik dapat dibuka sebagai register tersaring
+        $group = fn ($key, $label) => $risks->filter(fn ($r) => $r->{$key})->groupBy($key)->map(fn ($g, $id) => ['id' => $id, 'name' => $label($g->first()), 'n' => $g->count(), 'high' => $g->whereIn('residual_level', ['high', 'very_high'])->count()])->sortByDesc('n')->take(8)->values();
         $top = $risks->sortBy([['residual_score', 'desc'], ['inherent_score', 'desc']])->take(8)->values();
         $summary = ['total' => $risks->count(), 'high' => $byLevel['high'] + $byLevel['very_high'], 'escalate' => $risks->whereIn('evaluation', ['escalate', 'critical'])->count(),
             'realization' => $metrics['realization'], 'overdue' => $overdue->count(), 'kri_breach' => $kriBreach, 'up' => $risks->where('trend', 'up')->count(), 'down' => $risks->where('trend', 'down')->count()];
@@ -59,7 +60,9 @@ class DashboardController extends Controller
                 'plans_overdue' => $overdue->count(),
                 'kri_breach' => $kriBreach,
                 'incidents_open' => $this->scopeUnits(Incident::query())->when($unitFilter, fn ($q) => $q->whereIn('unit_id', $unitFilter))->where('status', '!=', 'closed')->count(),
-                'pending_approvals' => \App\Support\UnitScope::morph(Approval::query(), $user, false)->where('status', 'pending')->count(),
+                // Sama dengan badge "Persetujuan": pengajuan yang menunggu keputusan pengguna ini
+                'pending_approvals' => \App\Support\UnitScope::morph(Approval::query(), $user, false)->where('status', 'pending')->with('steps')->get()
+                    ->filter(fn ($a) => $a->requester_id !== $user->id && ($s = $a->steps->firstWhere('step_no', $a->current_step)) && ($s->role === $user->role || $user->role === 'super_admin'))->count(),
                 'controls_weak' => $this->scopedControls()->where('active', true)->where(fn ($q) => $q->where('operating_eff', '<=', 2)->orWhere('design_eff', '<=', 2))->count(),
                 'no_controls' => $riskIds->isEmpty() ? 0 : Risk::whereIn('id', $riskIds)->doesntHave('controls')->count(),
                 'new_year' => $this->scopeUnits(Risk::query())->whereYear('created_at', now()->year)->count(),
@@ -76,7 +79,7 @@ class DashboardController extends Controller
             'by_unit' => $group('unit_id', fn ($r) => $r->unit?->name ?? '—'),
             'by_objective' => $group('objective_id', fn ($r) => $r->objective ? "{$r->objective->code} · {$r->objective->name}" : '—'),
             'by_process' => $group('process_id', fn ($r) => $r->process?->name ?? '—'),
-            'top_risks' => $top->map(fn ($r) => $r->only('id', 'code', 'name', 'residual_score', 'inherent_score', 'residual_level', 'evaluation', 'trend', 'status') + ['unit' => $r->unit?->name, 'owner' => $r->owner?->name]),
+            'top_risks' => $top->map(fn ($r) => $r->only('id', 'code', 'name', 'unit_id', 'residual_score', 'inherent_score', 'residual_level', 'evaluation', 'trend', 'status') + ['unit' => $r->unit?->name, 'owner' => $r->owner?->name]),
             'emerging' => $risks->filter(fn ($r) => $r->trend === 'up' || $r->created_at?->gt(now()->subDays(30)))->sortByDesc('residual_score')->take(6)->values()->map(fn ($r) => $r->only('id', 'code', 'name', 'residual_score', 'residual_level', 'trend') + ['new' => $r->created_at?->gt(now()->subDays(30))]),
             'trend' => $periods->map(fn ($p) => ['period' => $p, 'avg' => round((float) ($trend[$p]->avg_score ?? 0), 1), 'n' => (int) ($trend[$p]->n ?? 0)]),
             'alerts' => \App\Support\UnitScope::morph(Alert::query(), $user)->whereNull('handled_at')->latest()->limit(6)->get(['id', 'type', 'severity', 'title', 'link', 'created_at', 'read_at']),
@@ -110,7 +113,7 @@ class DashboardController extends Controller
         $cats = RiskCategory::where('active', true)->orderBy('sort')->get()->map(function ($c) use ($risks) {
             $rs = $risks->where('category_id', $c->id);
             $max = (int) ($rs->max('residual_score') ?? 0);
-            return ['name' => $c->name, 'appetite' => $c->appetite, 'tolerance' => $c->tolerance, 'n' => $rs->count(), 'max' => $max,
+            return ['id' => $c->id, 'name' => $c->name, 'appetite' => $c->appetite, 'tolerance' => $c->tolerance, 'n' => $rs->count(), 'max' => $max,
                 'status' => $max > $c->tolerance ? 'breach' : ($max > $c->appetite ? 'watch' : 'ok')];
         });
         $periods = collect(range(11, 0))->map(fn ($i) => now()->subMonths($i)->format('Y-m'));
@@ -161,7 +164,7 @@ class DashboardController extends Controller
             'trend' => $trend,
             'top' => $risks->sortByDesc('residual_score')->take(10)->values()->map(fn ($r) => $r->only('id', 'code', 'name', 'residual_score', 'residual_level', 'evaluation', 'trend', 'treatment') + ['unit' => $r->unit?->name, 'category' => $r->category?->name]),
             'units' => OrgUnit::withCount(['risks' => fn ($q) => $q->where('status', '!=', 'closed')])->with(['risks' => fn ($q) => $q->where('status', '!=', 'closed')->select('id', 'unit_id', 'residual_score', 'residual_level')])->get()
-                ->map(fn ($u) => ['name' => $u->name, 'n' => $u->risks_count, 'high' => $u->risks->whereIn('residual_level', ['high', 'very_high'])->count(), 'avg' => round((float) $u->risks->avg('residual_score'), 1)])->filter(fn ($u) => $u['n'] > 0)->values(),
+                ->map(fn ($u) => ['id' => $u->id, 'name' => $u->name, 'n' => $u->risks_count, 'high' => $u->risks->whereIn('residual_level', ['high', 'very_high'])->count(), 'avg' => round((float) $u->risks->avg('residual_score'), 1)])->filter(fn ($u) => $u['n'] > 0)->values(),
         ]);
     }
 

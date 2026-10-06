@@ -34,6 +34,7 @@ class RiskController extends Controller
             'categories' => RiskCategory::orderBy('sort')->get(['id', 'name']),
             'owners' => $this->userOptions(),
             'objectives' => Objective::orderBy('sort')->get(['id', 'code', 'name']),
+            'processes' => Process::orderBy('name')->get(['id', 'name']),
             'can' => ['create' => $request->user()->can('create', Risk::class), 'import' => $request->user()->hasRole('super_admin', 'risk_admin', 'risk_manager', 'risk_officer')],
         ]);
     }
@@ -43,8 +44,10 @@ class RiskController extends Controller
     {
         $f = $request->validate([
             'q' => ['nullable', 'string', 'max:100'], 'unit_id' => ['nullable', 'integer'], 'category_id' => ['nullable', 'integer'],
-            'level' => ['nullable', Rule::in(array_keys(Scoring::LEVELS))], 'status' => ['nullable', Rule::in([...array_keys(config('manrisk.risk_statuses')), 'active'])],
-            'evaluation' => ['nullable', Rule::in(array_keys(Scoring::EVALUATIONS))], 'owner_id' => ['nullable', 'integer'],
+            // level & evaluation menerima satu nilai atau daftar dipisah koma (mis. level=high,very_high)
+            'level' => ['nullable', 'string', 'max:60', $this->listOf(array_keys(Scoring::LEVELS))], 'status' => ['nullable', Rule::in([...array_keys(config('manrisk.risk_statuses')), 'active'])],
+            'evaluation' => ['nullable', 'string', 'max:80', $this->listOf(array_keys(Scoring::EVALUATIONS))], 'owner_id' => ['nullable', 'integer'],
+            'ids' => ['nullable', 'string', 'max:4000', 'regex:/^\d+(,\d+)*$/'],
             'objective_id' => ['nullable', 'integer'], 'process_id' => ['nullable', 'integer'], 'trend' => ['nullable', Rule::in(['up', 'flat', 'down'])],
             'mode' => ['nullable', Rule::in(['inherent', 'residual', 'target'])], 'l' => ['nullable', 'integer', 'between:1,5'], 'i' => ['nullable', 'integer', 'between:1,5'],
             'no_controls' => ['nullable', 'boolean'], 'period' => ['nullable', 'date_format:Y'],
@@ -56,7 +59,15 @@ class RiskController extends Controller
             $term = '%' . addcslashes($f['q'], '%_\\') . '%';
             $q->where(fn ($w) => $w->where('code', 'like', $term)->orWhere('name', 'like', $term)->orWhere('event', 'like', $term)->orWhere('cause', 'like', $term)->orWhere('impact', 'like', $term));
         }
-        foreach (['category_id', 'owner_id', 'evaluation', 'objective_id', 'process_id', 'trend'] as $k) {
+        foreach (['level' => 'residual_level', 'evaluation' => 'evaluation'] as $k => $col) {
+            if (!empty($f[$k])) {
+                $q->whereIn($col, explode(',', $f[$k]));
+            }
+        }
+        if (!empty($f['ids'])) {
+            $q->whereIn('id', array_slice(array_map('intval', explode(',', $f['ids'])), 0, 500));
+        }
+        foreach (['category_id', 'owner_id', 'objective_id', 'process_id', 'trend'] as $k) {
             if (!empty($f[$k])) {
                 $q->where($k, $f[$k]);
             }
@@ -67,9 +78,6 @@ class RiskController extends Controller
         }
         if (!empty($f['status'])) {
             $f['status'] === 'active' ? $q->where('status', '!=', 'closed') : $q->where('status', $f['status']);
-        }
-        if (!empty($f['level'])) {
-            $q->where('residual_level', $f['level']);
         }
         if (!empty($f['l']) && !empty($f['i'])) {
             $m = $f['mode'] ?? 'residual';
@@ -83,6 +91,21 @@ class RiskController extends Controller
         }
         $q->orderBy($f['sort'] ?? 'residual_score', $f['dir'] ?? 'desc')->orderBy('code');
         return [$q, $f];
+    }
+
+    private function threshold(string $key): int
+    {
+        return (int) (CriteriaVersion::current()?->thresholds[$key] ?? ['escalate' => 16, 'critical' => 20][$key]);
+    }
+
+    /** Aturan validasi: satu nilai atau daftar dipisah koma dari pilihan yang diizinkan. */
+    private function listOf(array $allowed): \Closure
+    {
+        return function (string $attr, $value, \Closure $fail) use ($allowed) {
+            if (array_diff(explode(',', (string) $value), $allowed)) {
+                $fail("Nilai {$attr} tidak valid.");
+            }
+        };
     }
 
     /** Ekspor register sesuai filter aktif (F-REG-06). */
@@ -112,11 +135,17 @@ class RiskController extends Controller
     public function create(Request $request)
     {
         $this->authorize('create', Risk::class);
-        $prefill = [];
+        // Prefill dari menu lain: sasaran/unit/proses (Pemetaan Sasaran, Struktur Organisasi) atau saran AI
+        $q = $request->validate(['name' => ['nullable', 'string', 'max:255'], 'cause' => ['nullable', 'string', 'max:2000'], 'event' => ['nullable', 'string', 'max:2000'], 'impact' => ['nullable', 'string', 'max:2000'],
+            'category_id' => ['nullable', 'integer'], 'unit_id' => ['nullable', 'integer'], 'objective_id' => ['nullable', 'integer'], 'process_id' => ['nullable', 'integer']]);
+        $prefill = array_filter($q, fn ($v) => $v !== null && $v !== '');
+        if (!empty($prefill['process_id']) && ($proc = Process::find($prefill['process_id']))) {
+            $prefill += ['unit_id' => $proc->unit_id];
+        }
         if ($id = $request->integer('incident')) {
             $inc = \App\Models\Incident::findOrFail($id);
             $this->authorize('view', $inc);
-            $prefill = ['name' => $inc->title, 'unit_id' => $inc->unit_id, 'cause' => $inc->cause, 'event' => $inc->title, 'impact' => $inc->impact, 'existing_controls' => $inc->corrective_action, 'from_incident' => $inc->id, 'incident_code' => $inc->code];
+            $prefill = ['name' => $inc->title, 'unit_id' => $inc->unit_id, 'cause' => $inc->cause, 'event' => $inc->title, 'impact' => $inc->impact, 'existing_controls' => $inc->corrective_action, 'from_incident' => $inc->id, 'incident_code' => $inc->code] + $prefill;
         }
         return Inertia::render('Risks/Form', $this->formProps() + ['risk' => null, 'prefill' => $prefill, 'ai' => app(\App\Services\AiService::class)->available() && $request->user()->role !== 'auditor']);
     }
@@ -139,11 +168,13 @@ class RiskController extends Controller
             $this->snapshotVersion($risk, $data['note'] ?? 'Versi awal');
             if (!empty($data['plan_title'])) {
                 \App\Models\ActionPlan::create(['code' => Numbering::next(\App\Models\ActionPlan::class, 'AP'), 'risk_id' => $risk->id, 'title' => $data['plan_title'], 'pic_id' => $data['plan_pic_id'] ?? $risk->owner_id,
-                    'unit_id' => $risk->unit_id, 'priority' => $risk->residual_score >= 16 ? 'critical' : ($risk->residual_score >= 10 ? 'high' : 'medium'), 'start_date' => now(), 'due_date' => $data['plan_due'],
+                    'unit_id' => $risk->unit_id, 'priority' => $risk->residual_score >= $this->threshold('escalate') ? 'critical' : ($risk->residual_score >= 10 ? 'high' : 'medium'), 'start_date' => now(), 'due_date' => $data['plan_due'],
                     'expected_dl' => max(0, $risk->residual_l - $risk->target_l), 'expected_di' => max(0, $risk->residual_i - $risk->target_i), 'created_by' => $request->user()->id]);
             }
             if (!empty($data['from_incident'])) {
                 \App\Models\Incident::whereKey($data['from_incident'])->whereNull('risk_id')->update(['risk_id' => $risk->id]);
+                // Loss event insiden ikut terklasifikasi ke kategori risiko yang baru dibuat
+                \App\Models\LossEvent::where('incident_id', $data['from_incident'])->update(['category_id' => $risk->category_id, 'risk_name' => mb_substr($risk->name, 0, 255)]);
             }
             return $risk;
         });
@@ -155,19 +186,21 @@ class RiskController extends Controller
         $this->authorize('view', $risk);
         $risk->load(['unit:id,name', 'category:id,name,appetite,tolerance', 'owner:id,name,role', 'objective:id,code,name', 'process:id,name', 'creator:id,name',
             'controls' => fn ($q) => $q->with('owner:id,name'), 'actionPlans' => fn ($q) => $q->with('pic:id,name')->orderBy('due_date'),
-            'kris', 'incidents' => fn ($q) => $q->latest('occurred_at')->limit(10), 'reviews' => fn ($q) => $q->with('reviewer:id,name')->latest(),
+            'kris', 'incidents' => fn ($q) => $q->latest('occurred_at')->limit(10), 'improvements' => fn ($q) => $q->with('pic:id,name')->latest(), 'reviews' => fn ($q) => $q->with('reviewer:id,name')->latest(),
             'versions' => fn ($q) => $q->with(['creator:id,name', 'approver:id,name'])->orderByDesc('version'), 'documents' => fn ($q) => $q->with('uploader:id,name')->latest(),
             'approvals' => fn ($q) => $q->with(['steps.approver:id,name', 'requester:id,name'])->latest(), 'lessons' => fn ($q) => $q->with('creator:id,name')->latest(), 'snapshots']);
+        $risk->loadCount('incidents');
         $scoring = app(Scoring::class);
         $user = auth()->user();
         return Inertia::render('Risks/Show', [
             'risk' => $risk,
+            'alerts' => \App\Models\Alert::where('subject_type', 'risk')->where('subject_id', $risk->id)->whereNull('handled_at')->latest()->limit(5)->get(['id', 'title', 'severity', 'link', 'created_at']),
             'projected' => $scoring->projected($risk),
             'statement' => $risk->statement(),
             'audit' => \App\Models\AuditLog::where('subject_type', $risk->getMorphClass())->where('subject_id', $risk->id)->with('user:id,name')->latest('id')->limit(30)->get(),
-            'criteria' => CriteriaVersion::current()?->only('likelihood', 'impact', 'dimensions', 'matrix'),
+            'criteria' => CriteriaVersion::current()?->only('likelihood', 'impact', 'dimensions', 'matrix', 'thresholds'),
             'can' => [
-                'update' => $user->can('update', $risk), 'delete' => $user->can('delete', $risk), 'submit' => $user->can('submit', $risk),
+                'update' => $user->can('update', $risk), 'edit' => $user->can('update', $risk) && !in_array($risk->status, ['pending', 'closed'], true), 'delete' => $user->can('delete', $risk), 'submit' => $user->can('submit', $risk),
                 'close' => $user->can('close', $risk), 'score' => $user->can('changeScore', $risk), 'plan' => $user->can('create', \App\Models\ActionPlan::class),
                 'document' => $user->can('create', \App\Models\Document::class), 'review' => $user->can('create', \App\Models\Review::class),
             ],
@@ -177,6 +210,9 @@ class RiskController extends Controller
     public function edit(Risk $risk)
     {
         $this->authorize('update', $risk);
+        if ($risk->status === 'closed') {
+            return redirect()->route('risks.show', $risk)->with('error', 'Risiko yang sudah ditutup tidak dapat diubah.');
+        }
         $risk->load('controls:id');
         return Inertia::render('Risks/Form', $this->formProps() + ['risk' => $risk->toArray() + ['control_ids' => $risk->controls->pluck('id')]]);
     }
@@ -187,11 +223,16 @@ class RiskController extends Controller
         if ($risk->status === 'pending') {
             return back()->with('error', 'Risiko sedang menunggu persetujuan dan tidak dapat diubah.');
         }
+        if ($risk->status === 'closed') {
+            return back()->with('error', 'Risiko yang sudah ditutup tidak dapat diubah; catat risiko baru bila muncul kembali.');
+        }
         $data = $request->validated();
         $scoreChanged = false;
         DB::transaction(function () use ($data, $risk, $request, &$scoreChanged) {
             $prevScore = $risk->residual_score;
             $scoreFields = ['inherent_l', 'inherent_i', 'residual_l', 'residual_i', 'target_l', 'target_i'];
+            // Nilai terakhir yang berlaku — dipulihkan bila perubahan skor ditolak/dikembalikan
+            $restore = $risk->only([...$scoreFields, 'inherent_dims', 'residual_dims', 'previous_score']);
             $risk->fill(collect($data)->except(['control_ids', 'note', 'plan_title', 'plan_due', 'plan_pic_id', 'from_incident'])->all());
             $scoreChanged = $risk->isDirty($scoreFields) || $risk->isDirty(['inherent_dims', 'residual_dims']);
             if ($scoreChanged) {
@@ -207,7 +248,7 @@ class RiskController extends Controller
                 $this->snapshotVersion($risk, $data['note'] ?? null);
                 app(AlertService::class)->checkScoreChange($risk, $prevScore);
                 if ($risk->status !== 'draft') {
-                    app(ApprovalService::class)->submit($risk, 'score_change', $request->user(), $data['note'] ?? "Perubahan skor residual {$prevScore} → {$risk->residual_score}");
+                    app(ApprovalService::class)->submit($risk, 'score_change', $request->user(), $data['note'] ?? "Perubahan skor residual {$prevScore} → {$risk->residual_score}", ['restore' => $restore]);
                 }
             }
         });
@@ -220,7 +261,15 @@ class RiskController extends Controller
         if ($risk->status !== 'draft') {
             return back()->with('error', 'Hanya risiko berstatus draft yang dapat dihapus; gunakan penutupan risiko.');
         }
-        $risk->delete();
+        DB::transaction(function () use ($risk) {
+            // Draft dihapus beserta turunannya agar tidak ada action plan/KRI/insiden yatim yang menunjuk risiko terhapus
+            $risk->actionPlans()->get()->each->delete();
+            \App\Models\Kri::where('risk_id', $risk->id)->update(['risk_id' => null]);
+            \App\Models\Incident::where('risk_id', $risk->id)->update(['risk_id' => null]);
+            \App\Models\Improvement::where('risk_id', $risk->id)->update(['risk_id' => null]);
+            $risk->controls()->detach();
+            $risk->delete();
+        });
         return redirect()->route('risks.index')->with('success', "Risiko {$risk->code} dihapus.");
     }
 

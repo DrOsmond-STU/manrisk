@@ -6,8 +6,9 @@ import Field from '../../Components/Field.vue';
 import { fmt } from '../../lib/format';
 const props = defineProps({ user: Object, logins: Array, sessions: Number, mfa: Object, recovery_codes: Array });
 const confirm = (m) => window.confirm(m);
-const form = useForm({ name: props.user.name, position: props.user.position || '', preferences: { notify: props.user.preferences?.notify || ['database', 'mail'], theme: props.user.preferences?.theme || '' } });
-const toggle = (c) => { const i = form.preferences.notify.indexOf(c); if (i >= 0) form.preferences.notify.splice(i, 1); else form.preferences.notify.push(c); };
+// peringatan selalu tampil di lonceng aplikasi; preferensi hanya mengatur salinan email (format lama preferences.notify berisi 'mail' dipertahankan)
+const form = useForm({ name: props.user.name, position: props.user.position || '', preferences: { notify: (props.user.preferences?.notify || ['mail']).filter((c) => c === 'mail'), theme: props.user.preferences?.theme || '' } });
+const toggleMail = () => { form.preferences.notify = form.preferences.notify.includes('mail') ? [] : ['mail']; };
 // Verifikasi dua langkah (MFA via email)
 const codeSent = ref(false);
 const enableForm = useForm({ code: '' });
@@ -28,7 +29,7 @@ const downloadCodes = () => { const a = document.createElement('a'); a.href = UR
   <div class="s-grid">
     <form class="card" style="grid-column:span 6" @submit.prevent="form.put('/profile')"><div class="card-h"><h3>Profil & preferensi</h3></div><div class="card-b stack">
       <Field v-model="form.name" label="Nama" required :error="form.errors.name" /><Field v-model="form.position" label="Jabatan" :error="form.errors.position" />
-      <div class="field"><label>Saluran notifikasi</label><div class="chips-sel"><label :class="{ on: form.preferences.notify.includes('database') }"><input type="checkbox" style="display:none" @change="toggle('database')">Lonceng di aplikasi</label><label :class="{ on: form.preferences.notify.includes('mail') }"><input type="checkbox" style="display:none" @change="toggle('mail')">Email</label></div></div>
+      <div class="field"><label>Notifikasi peringatan</label><div class="chips-sel"><label :class="{ on: form.preferences.notify.includes('mail') }"><input type="checkbox" style="display:none" :checked="form.preferences.notify.includes('mail')" @change="toggleMail">Kirim juga ke email</label></div><span class="hint">Peringatan (KRI, tenggat, persetujuan) selalu tampil di lonceng aplikasi; pilihan ini hanya mengatur salinan lewat email.</span></div>
       <div class="row" style="justify-content:flex-end"><button class="btn c-green" type="submit" :disabled="form.processing">Simpan</button></div></div></form>
     <div class="card" style="grid-column:span 6"><div class="card-h"><h3>Keamanan akun</h3></div><div class="card-b"><dl class="kv"><dt>Peran</dt><dd>{{ user.role_label }}</dd><dt>Login terakhir</dt><dd>{{ fmt.datetime(user.last_login_at) }} dari {{ user.last_login_ip || '—' }}</dd><dt>Sandi diganti</dt><dd>{{ fmt.datetime(user.password_changed_at) }}</dd><dt>Sesi aktif</dt><dd>{{ sessions }} perangkat/peramban</dd></dl>
       <h4 style="margin:14px 0 6px">Aktivitas masuk terakhir</h4><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Waktu</th><th>Peristiwa</th><th>IP</th></tr></thead><tbody><tr v-for="(l, i) in logins" :key="i"><td>{{ fmt.datetime(l.created_at) }}</td><td><span class="pill" :class="/failed|locked/.test(l.event) ? 'bad' : 'ok'">{{ l.event }}</span></td><td class="mono">{{ l.ip }}</td></tr></tbody></table></div></div></div>

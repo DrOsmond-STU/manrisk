@@ -29,11 +29,13 @@ class ReviewController extends Controller
         }
         $reviews = $q->latest()->paginate(25)->withQueryString();
         $periodNow = now()->format('Y') . '-Q' . now()->quarter;
-        $reviewedIds = Review::where('period', $periodNow)->pluck('risk_id');
+        // Dianggap sudah direview bila ada review (jenis apa pun) yang ditandatangani dalam triwulan berjalan
+        $reviewedIds = Review::whereBetween('signed_at', [now()->startOfQuarter(), now()->endOfQuarter()])->pluck('risk_id');
         $periods = Review::select('period')->distinct()->orderByDesc('period')->pluck('period');
         return Inertia::render('Reviews/Index', [
             'reviews' => $reviews,
             'filters' => $f,
+            'focus_risk' => !empty($f['risk_id']) ? Risk::find($f['risk_id'])?->only('id', 'code', 'name') : null,
             'periods' => $periods,
             'period_now' => $periodNow,
             'due' => $this->scopeUnits(Risk::query())->where('status', '!=', 'closed')->whereNotIn('id', $reviewedIds)->with('unit:id,name')->orderByDesc('residual_score')->get(['id', 'code', 'name', 'unit_id', 'residual_score', 'residual_level', 'previous_score']),
@@ -60,13 +62,20 @@ class ReviewController extends Controller
             'trend' => $prev === null ? 'flat' : ($risk->residual_score > $prev ? 'up' : ($risk->residual_score < $prev ? 'down' : 'flat')),
             'reviewer_id' => $request->user()->id, 'signed_at' => now(), 'signed_ip' => $request->ip(),
         ]);
+        $warning = null;
         if ($data['decision'] === 'close' && $risk->status !== 'closed' && $risk->status !== 'pending') {
-            $approvals->submit($risk, 'closure', $request->user(), 'Hasil review ' . $data['period'] . ': ' . ($data['note'] ?? 'direkomendasikan ditutup'));
+            // Sama dengan pengajuan penutupan dari halaman risiko: action plan harus selesai/dibatalkan dulu
+            $openPlans = $risk->actionPlans()->whereNull('cancelled_at')->where('progress', '<', 100)->count();
+            if ($openPlans > 0) {
+                $warning = "Review dicatat, tetapi penutupan belum diajukan: masih ada {$openPlans} action plan yang belum selesai.";
+            } else {
+                $approvals->submit($risk, 'closure', $request->user(), 'Hasil review ' . $data['period'] . ': ' . ($data['note'] ?? 'direkomendasikan ditutup'));
+            }
         }
         if ($data['decision'] === 'escalate') {
             app(\App\Services\AlertService::class)->raise('review_escalate', 'warning', $risk, "Review {$data['period']}: risiko {$risk->code} dieskalasi", $data['note'] ?? null, route('risks.show', $risk, false), "review:{$review->id}", \App\Models\User::where('role', 'management')->where('active', true)->get()->all());
         }
-        return $this->ok('Review dicatat.');
+        return $warning ? back()->with('warning', $warning) : $this->ok('Review dicatat.');
     }
 
     public function destroy(Review $review)

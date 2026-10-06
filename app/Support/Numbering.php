@@ -23,8 +23,9 @@ class Numbering
             if (in_array('Illuminate\\Database\\Eloquent\\SoftDeletes', class_uses_recursive($modelClass), true)) {
                 $query->withTrashed();
             }
-            $last = $query->lockForUpdate()->orderByDesc('code')->value('code');
-            $n = $last ? ((int) substr($last, strlen($base))) + 1 : 1;
+            // Urut numerik (bukan string) agar setelah ...-999 berlanjut ke ...-1000, bukan bertabrakan
+            $max = $query->lockForUpdate()->pluck('code')->map(fn ($c) => (int) substr($c, strlen($base)))->max() ?? 0;
+            $n = $max + 1;
             return $base . str_pad((string) $n, 3, '0', STR_PAD_LEFT);
         });
     }

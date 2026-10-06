@@ -46,6 +46,11 @@ class OrgUnit extends Model
         return $this->hasMany(OrgUnit::class, 'parent_id');
     }
 
+    public function users(): HasMany
+    {
+        return $this->hasMany(User::class, 'unit_id');
+    }
+
     public function risks(): HasMany
     {
         return $this->hasMany(Risk::class, 'unit_id');
