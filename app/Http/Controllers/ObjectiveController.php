@@ -54,13 +54,13 @@ class ObjectiveController extends Controller
     private function validated(Request $request, ?Objective $o = null): array
     {
         return $request->validate([
-            'code' => ['required', 'string', 'max:20', Rule::unique('objectives')->where('organization_id', $request->user()->organization_id)->ignore($o?->id)->whereNull('deleted_at')],
+            'code' => ['required', 'string', 'max:20', Rule::unique('objectives')->where('organization_id', $request->user()->organization_id)->ignore($o?->id)],
             'name' => ['required', 'string', 'max:255'],
             'kpi' => ['nullable', 'string', 'max:255'],
             'period' => ['nullable', 'string', 'max:20'],
             'sort' => ['nullable', 'integer', 'min:0'],
             'active' => ['nullable', 'boolean'],
-        ]);
+        ], ['code.unique' => 'Kode sudah digunakan (termasuk oleh sasaran yang sudah dihapus); gunakan kode lain.']);
     }
 
     // ---- Program ----

@@ -13,7 +13,10 @@ page.on('response', (r) => { if (r.status() >= 500) errors.push(`[http ${r.statu
 process.on('exit', () => { console.log(steps.join('\n')); console.log(`\nLANGKAH: ${steps.filter((s) => s.startsWith('PASS')).length}/${steps.length} lulus · ERRORS: ${errors.length}`); errors.slice(0, 20).forEach((e) => console.log(' ', e)); });
 const ok = (name, cond, extra = '') => steps.push(`${cond ? 'PASS' : 'FAIL'}  ${name}${extra ? ' — ' + extra : ''}`);
 const go = async (u) => { await page.goto(BASE + u, { waitUntil: 'networkidle' }); };
-const click = async (loc) => { await Promise.all([page.waitForLoadState('networkidle'), loc.first().click()]); await page.waitForLoadState('networkidle'); };
+// Navigasi Inertia terjadi di sisi klien: tunggu URL berubah, lalu jaringan tenang
+const click = async (loc) => { const before = page.url(); await loc.first().click(); await page.waitForURL((u) => u.toString() !== before, { timeout: 15000 }).catch(() => {}); await page.waitForLoadState('networkidle'); await page.waitForTimeout(150); };
+// Bandingkan URL tanpa peduli urutan parameter
+const sameUrl = (a, b) => { const x = new URL(a, BASE), y = new URL(b, BASE); const sp = (u) => [...u.searchParams].map((p) => p.join('=')).sort().join('&'); return x.pathname === y.pathname && sp(x) === sp(y); };
 const path = () => decodeURIComponent(new URL(page.url()).pathname + new URL(page.url()).search);
 const total = async () => Number((await page.locator('.page-h p, .ph-sub, header p').first().textContent().catch(() => '')).match(/(\d+) risiko terdaftar/)?.[1] ?? NaN);
 const kpiValue = async (label) => Number((await page.locator('.kpi', { hasText: label }).first().locator('.k-v').textContent()).replace(/[^\d]/g, ''));
@@ -56,7 +59,7 @@ for (const [tab, btn, expect] of [['Action plan', 'Buka di Action Plan', `/actio
   await go(riskUrl);
   await page.locator('.tabs button', { hasText: tab }).first().click();
   await click(page.locator('a', { hasText: btn }));
-  ok(`Detail risiko tab ${tab} → ${expect.split('?')[0]}`, path() === expect, path());
+  ok(`Detail risiko tab ${tab} → ${expect.split('?')[0]}`, sameUrl(path(), expect), path());
 }
 // 4. Matriks dengan filter unit → register membawa filter yang sama
 await go('/risks/matrix');
@@ -66,7 +69,7 @@ const cell = page.locator('.heat .cell:not(.zero), .cell:not(.zero)').first();
 if (await cell.count()) {
   await cell.click();
   await click(page.locator('a', { hasText: 'Buka di register' }));
-  ok('Matriks (unit) → sel → register dengan filter unit', path().includes(`unit_id=${unitOpt}`) && /l=\d&i=\d/.test(path()), path());
+  ok('Matriks (unit) → sel → register dengan filter unit', path().includes(`unit_id=${unitOpt}`) && /[?&]l=\d/.test(path()) && /[?&]i=\d/.test(path()), path());
 } else ok('Matriks (unit) → sel', true, 'unit tanpa risiko aktif');
 // 5. Struktur organisasi → jumlah risiko = register (termasuk sub-unit)
 await go('/organization/units');

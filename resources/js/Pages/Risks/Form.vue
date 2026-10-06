@@ -43,7 +43,7 @@ const aiStatement = async () => {
 // ---- deteksi duplikat (F-IDN-07) ----
 const dupes = ref([]); let dt;
 watch(() => [form.unit_id, form.name, form.event], () => {
-  clearTimeout(dt); if (!form.unit_id || (form.name + form.event).trim().length < 12) { dupes.value = []; return; }
+  clearTimeout(dt); if (form.processing || !form.unit_id || (form.name + form.event).trim().length < 12) { dupes.value = []; return; }
   dt = setTimeout(async () => { try { const q = new URLSearchParams({ unit_id: form.unit_id, text: `${form.name} ${form.event}`, ...(edit ? { except: props.risk.id } : {}) }); const res = await fetch(`/risks/similar?${q}`, { headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' } }); dupes.value = res.ok ? await res.json() : []; } catch (e) { dupes.value = []; } }, 600);
 });
 const step = ref(1);
@@ -62,7 +62,8 @@ const dimChange = (prefix) => { const vals = Object.values(form[`${prefix}_dims`
 const statement = computed(() => (form.cause && form.event && form.impact) ? `Karena ${form.cause.trim().replace(/\.$/, '')}, dapat terjadi ${form.event.trim().replace(/\.$/, '')}, sehingga menyebabkan ${form.impact.trim().replace(/\.$/, '')}.` : '');
 const warn = computed(() => { const w = []; if (score(form.residual_l, form.residual_i) > score(form.inherent_l, form.inherent_i)) w.push('Skor residual tidak boleh melebihi skor inheren.'); if (score(form.target_l, form.target_i) > score(form.residual_l, form.residual_i)) w.push('Skor target tidak boleh melebihi skor residual.'); return w; });
 const stepOk = computed(() => step.value === 1 ? (form.name && form.unit_id && form.category_id && form.owner_id && form.cause && form.event && form.impact) : step.value === 2 ? !warn.value.length : true);
-const submit = () => { if (edit) form.put(`/risks/${r.id}`); else form.post('/risks'); };
+// Batalkan cek duplikat yang tertunda agar request latar belakang tidak "memakan" pesan flash hasil simpan
+const submit = () => { clearTimeout(dt); if (edit) form.put(`/risks/${r.id}`); else form.post('/risks'); };
 const toggleControl = (id) => { const i = form.control_ids.indexOf(id); if (i >= 0) form.control_ids.splice(i, 1); else form.control_ids.push(id); };
 const firstErrorStep = () => { const e = Object.keys(form.errors); if (!e.length) return null; if (e.some((k) => ['name', 'unit_id', 'category_id', 'owner_id', 'cause', 'event', 'impact', 'source_kind', 'objective_id', 'process_id'].includes(k))) return 1; if (e.some((k) => k.includes('_l') || k.includes('_i') || k.includes('dims'))) return 2; return 3; };
 </script>

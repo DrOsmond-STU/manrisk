@@ -177,6 +177,7 @@ class DashboardController extends Controller
     private function scopedControls()
     {
         $ids = request()->user()->accessibleUnitIds();
-        return Control::query()->when($ids !== null, fn ($q) => $q->where(fn ($w) => $w->whereNull('unit_id')->orWhereIn('unit_id', $ids)));
+        // Sama dengan daftar Kontrol: tanpa unit, unit dalam cakupan, atau terkait risiko dalam cakupan
+        return Control::query()->when($ids !== null, fn ($q) => $q->where(fn ($w) => $w->whereNull('unit_id')->orWhereIn('unit_id', $ids)->orWhereHas('risks', fn ($r) => $r->whereIn('unit_id', $ids))));
     }
 }

@@ -129,6 +129,7 @@ class RiskController extends Controller
     {
         $this->authorize('viewAny', Risk::class);
         $d = $request->validate(['unit_id' => ['required', 'integer'], 'text' => ['required', 'string', 'max:2000'], 'except' => ['nullable', 'integer']]);
+        $request->session()->reflash(); // request latar belakang tidak boleh menghabiskan pesan flash halaman
         return response()->json(\App\Support\Duplicates::find($d['unit_id'], $d['text'], $d['except'] ?? null, $request->user()));
     }
 

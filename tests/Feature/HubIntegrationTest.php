@@ -59,6 +59,8 @@ class HubIntegrationTest extends TestCase
     public function test_approval_request_notifies_approver_and_focus_link_works(): void
     {
         $risk = $this->makeRisk(['status' => 'draft', 'residual_l' => 2, 'residual_i' => 2]);
+        // dua calon penyetuju → memastikan unit pengguna dimuat sekaligus (tanpa lazy load)
+        \App\Models\User::withoutGlobalScopes()->create(['organization_id' => $this->org->id, 'name' => 'Owner 2', 'email' => 'owner2@uji.test', 'password' => 'Secret#Pass123', 'role' => 'risk_owner', 'unit_id' => $this->unitB->id]);
         $this->as('risk_officer')->post("/risks/{$risk->id}/submit")->assertSessionHas('success');
         $a = Approval::where('subject_id', $risk->id)->first();
         $alert = Alert::where('type', 'approval_request')->where('subject_id', $a->id)->first();
@@ -176,6 +178,12 @@ class HubIntegrationTest extends TestCase
         $alerts = Alert::where('type', 'action_overdue')->get();
         $this->assertCount(1, $alerts);
         $this->assertSame("/action-plans/{$late->id}", $alerts->first()->link);
+    }
+
+    public function test_background_duplicate_check_does_not_consume_flash(): void
+    {
+        $this->as('risk_officer')->withSession(['_flash' => ['new' => [], 'old' => ['success']], 'success' => 'Risiko tersimpan'])
+            ->getJson("/risks/similar?unit_id={$this->unitA->id}&text=" . urlencode('teks yang cukup panjang'))->assertOk()->assertSessionHas('success', 'Risiko tersimpan');
     }
 
     public function test_numbering_continues_past_999(): void

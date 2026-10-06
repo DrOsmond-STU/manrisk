@@ -66,12 +66,12 @@ class OrgUnitController extends Controller
     {
         return $request->validate([
             'name' => ['required', 'string', 'max:160'],
-            'code' => ['required', 'string', 'max:20', 'regex:/^[A-Z0-9._-]+$/i', Rule::unique('org_units')->where('organization_id', $request->user()->organization_id)->ignore($unit?->id)->whereNull('deleted_at')],
+            'code' => ['required', 'string', 'max:20', 'regex:/^[A-Z0-9._-]+$/i', Rule::unique('org_units')->where('organization_id', $request->user()->organization_id)->ignore($unit?->id)],
             'type' => ['required', Rule::in(array_keys(config('manrisk.unit_types')))],
             'parent_id' => ['nullable', Rule::exists('org_units', 'id')->where('organization_id', $request->user()->organization_id)],
             'head_user_id' => ['nullable', Rule::exists('users', 'id')->where('organization_id', $request->user()->organization_id)],
             'sort' => ['nullable', 'integer', 'min:0', 'max:9999'],
             'active' => ['nullable', 'boolean'],
-        ]);
+        ], ['code.unique' => 'Kode sudah digunakan (termasuk oleh unit yang sudah dihapus); gunakan kode lain.']);
     }
 }

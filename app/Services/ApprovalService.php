@@ -151,7 +151,7 @@ class ApprovalService
         if (!$role) {
             return;
         }
-        $users = User::where('role', $role)->where('active', true)->where('id', '!=', $approval->requester_id)->get()
+        $users = User::with('unit')->where('role', $role)->where('active', true)->where('id', '!=', $approval->requester_id)->get()
             ->filter(fn ($u) => !$subject instanceof Risk || $u->canAccessUnit($subject->unit_id))->all();
         app(AlertService::class)->raise('approval_request', 'info', $approval,
             "Menunggu keputusan " . (User::ROLES[$role] ?? $role) . ": {$approval->code} · " . (self::TYPES[$approval->type] ?? $approval->type) . ($subject ? " {$subject->code}" : ''), $approval->note,
