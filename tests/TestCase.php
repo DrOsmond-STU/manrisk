@@ -22,6 +22,7 @@ abstract class TestCase extends BaseTestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->withoutVite(); // CI tidak membangun aset frontend; tes tidak bergantung pada public/build
         \App\Support\MailSettings::flush();
         $this->org = Organization::create(['name' => 'Org Uji', 'code' => 'UJI']);
         CoreSeeder::seedOrganization($this->org);
