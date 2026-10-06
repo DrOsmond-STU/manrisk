@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Risk;
 use App\Services\AiService;
+use App\Support\UnitScope;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -13,7 +14,8 @@ class AiController extends Controller
     public function index(Request $request, AiService $ai)
     {
         abort_if($request->user()->role === 'auditor', 403, 'Auditor tidak menggunakan AI Assistant (§3.2).');
-        return Inertia::render('Ai/Index', ['enabled' => $ai->available(), 'provider' => $ai->hasProvider() ? config('manrisk.ai.model') : 'mode lokal (tanpa kunci API)', 'remaining' => $ai->remaining($request->user()), 'risks' => $this->riskOptions()]);
+        return Inertia::render('Ai/Index', ['enabled' => $ai->available(), 'provider' => $ai->hasProvider() ? config('manrisk.ai.model') : 'mode lokal (tanpa kunci API)', 'remaining' => $ai->remaining($request->user()), 'risks' => $this->riskOptions(),
+            'categories' => \App\Models\RiskCategory::where('active', true)->orderBy('sort')->get(['id', 'name'])]);
     }
 
     public function run(Request $request, AiService $ai)
@@ -33,16 +35,21 @@ class AiController extends Controller
         }
         if (in_array($data['feature'], ['summarize', 'draft_report'], true)) {
             $risks = $this->scopeUnits(Risk::query())->where('status', '!=', 'closed')->get();
-            $plans = \App\Models\ActionPlan::whereNull('cancelled_at')->get();
+            // action plan & insiden dibatasi ke cakupan unit pengguna (sama seperti daftar risikonya)
+            $units = $request->user()->accessibleUnitIds();
+            $plans = \App\Models\ActionPlan::whereNull('cancelled_at')->when($units !== null, fn ($q) => $q->where(fn ($w) => $w->whereIn('risk_id', UnitScope::riskIdsQuery($request->user()))->orWhereIn('unit_id', $units)))->get();
+            $incidents = fn () => \App\Models\Incident::whereYear('occurred_at', now()->year)->when($units !== null, fn ($q) => $q->whereIn('unit_id', $units));
             $input['summary'] = ['total' => $risks->count(), 'high' => $risks->whereIn('residual_level', ['high', 'very_high'])->count(), 'avg' => round((float) $risks->avg('residual_score'), 1),
                 'escalate' => $risks->whereIn('evaluation', ['escalate', 'critical'])->count(), 'plan_done' => $plans->where('progress', 100)->count(), 'plan_total' => $plans->count(),
-                'incidents_ytd' => \App\Models\Incident::whereYear('occurred_at', now()->year)->count(), 'loss_ytd' => (float) \App\Models\Incident::whereYear('occurred_at', now()->year)->sum('loss_amount')];
+                'incidents_ytd' => $incidents()->count(), 'loss_ytd' => (float) $incidents()->sum('loss_amount')];
             $input['top'] = $risks->sortByDesc('residual_score')->take(10)->values()->map(fn ($r) => $r->only('code', 'name', 'residual_score', 'residual_level', 'evaluation'))->all();
+            $refs = $risks->pluck('id', 'code');
         }
         if (in_array($data['feature'], AiService::STRUCTURED, true)) {
             $input['categories'] = \App\Models\RiskCategory::where('active', true)->orderBy('sort')->pluck('name')->all();
             return response()->json($ai->structured($request->user(), $data['feature'], $input));
         }
-        return response()->json($ai->run($request->user(), $data['feature'], $input));
+        // peta kode → id risiko (hanya risiko dalam cakupan) agar kode yang disebut AI dapat ditautkan ke halaman risikonya
+        return response()->json($ai->run($request->user(), $data['feature'], $input) + ['refs' => $refs ?? (isset($risk) ? [$risk->code => $risk->id] : [])]);
     }
 }

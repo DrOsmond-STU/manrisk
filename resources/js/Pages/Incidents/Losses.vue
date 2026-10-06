@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue';
-import { Head } from '@inertiajs/vue3';
+import { Head, Link } from '@inertiajs/vue3';
 import PageHead from '../../Components/PageHead.vue';
 import CrudModal from '../../Components/CrudModal.vue';
 import ConfirmButton from '../../Components/ConfirmButton.vue';
@@ -21,8 +21,8 @@ const total = props.losses.reduce((a, l) => a + Number(l.amount), 0);
   </PageHead>
   <div class="kpis"><Kpi label="Total kerugian tercatat" :value="fmt.short(total)" /><Kpi label="Jumlah peristiwa" :value="losses.length" /><Kpi label="Tahun berjalan" :value="fmt.short(by_year.find((y) => y.year == new Date().getFullYear())?.total || 0)" level="vh" /></div>
   <div class="s-grid"><div class="card" style="grid-column:span 7"><div class="card-h"><h3>Kerugian per tahun</h3></div><div class="card-b"><Chart :option="yearOpt" height="240px" /></div></div><div class="card" style="grid-column:span 5"><div class="card-h"><h3>Per kategori</h3></div><div class="card-b"><Chart :option="catOpt" height="240px" /></div></div>
-    <div class="card" style="grid-column:1/-1"><div class="card-b flush tbl-wrap"><table class="tbl"><thead><tr><th>Tahun</th><th>Risiko</th><th>Peristiwa</th><th>Kategori</th><th>Insiden</th><th class="num">Kerugian</th><th></th></tr></thead><tbody>
-      <tr v-for="l in losses" :key="l.id"><td class="mono">{{ l.year }}</td><td class="t-main wrap">{{ l.risk_name }}</td><td class="fg2 wrap">{{ l.event }}<div class="t-sub">{{ l.description }}</div></td><td class="t-sub">{{ l.category?.name }}</td><td class="t-sub">{{ l.incident?.code }}</td><td class="num"><b>{{ fmt.money(l.amount) }}</b></td><td><span class="row" style="justify-content:flex-end"><button v-if="can.write" type="button" class="btn sm c-blue" @click="item = l; modal = true">Ubah</button><ConfirmButton v-if="can.delete" :href="`/incidents/losses/${l.id}`" /></span></td></tr>
-      <tr v-if="!losses.length"><td colspan="7"><div class="empty">Belum ada data kerugian.</div></td></tr></tbody></table></div></div></div>
+    <div class="card" style="grid-column:1/-1"><div class="card-b flush tbl-wrap"><table class="tbl"><thead><tr><th>Tahun</th><th>Risiko</th><th>Peristiwa</th><th>Kategori</th><th>Insiden</th><th>Risiko</th><th class="num">Kerugian</th><th></th></tr></thead><tbody>
+      <tr v-for="l in losses" :key="l.id"><td class="mono">{{ l.year }}</td><td class="t-main wrap">{{ l.risk_name }}</td><td class="fg2 wrap">{{ l.event }}<div class="t-sub">{{ l.description }}</div></td><td class="t-sub">{{ l.category?.name }}</td><td><Link v-if="l.incident" :href="`/incidents/${l.incident.id}`" class="code-link">{{ l.incident.code }}</Link></td><td><Link v-if="l.incident?.risk" :href="`/risks/${l.incident.risk.id}`" class="code-link">{{ l.incident.risk.code }}</Link></td><td class="num"><b>{{ fmt.money(l.amount) }}</b></td><td><span class="row" style="justify-content:flex-end"><button v-if="can.write" type="button" class="btn sm c-blue" @click="item = l; modal = true">Ubah</button><ConfirmButton v-if="can.delete" :href="`/incidents/losses/${l.id}`" /></span></td></tr>
+      <tr v-if="!losses.length"><td colspan="8"><div class="empty">Belum ada data kerugian.</div></td></tr></tbody></table></div></div></div>
   <CrudModal :show="modal" :title="item ? 'Ubah kerugian' : 'Tambah kerugian'" :fields="fields" :item="item" :url="item ? `/incidents/losses/${item.id}` : '/incidents/losses'" :method="item ? 'put' : 'post'" @close="modal = false" />
 </template>

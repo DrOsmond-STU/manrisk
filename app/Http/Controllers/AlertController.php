@@ -11,15 +11,29 @@ class AlertController extends Controller
 {
     public function index(Request $request)
     {
-        $f = $request->validate(['severity' => ['nullable', 'in:info,warning,critical'], 'open' => ['nullable', 'boolean']]);
+        $f = $request->validate(['severity' => ['nullable', 'in:info,warning,critical'], 'open' => ['nullable', 'boolean'], 'unread' => ['nullable', 'boolean']]);
         $q = UnitScope::morph(Alert::with('handler:id,name'), $request->user())->latest();
         if (!empty($f['severity'])) {
             $q->where('severity', $f['severity']);
         }
+        if (!empty($f['unread'])) {
+            $q->whereNull('read_at'); // sama dengan angka pada lonceng
+        }
         if (($f['open'] ?? '1') !== '0') {
             $q->whereNull('handled_at');
         }
-        return Inertia::render('Alerts/Index', ['alerts' => $q->paginate(30)->withQueryString(), 'filters' => $f, 'stats' => UnitScope::morph(Alert::query(), $request->user())->whereNull('handled_at')->selectRaw('severity, count(*) n')->groupBy('severity')->pluck('n', 'severity')]);
+        return Inertia::render('Alerts/Index', ['alerts' => $q->paginate(30)->withQueryString(), 'filters' => $f, 'stats' => UnitScope::morph(Alert::query(), $request->user())->whereNull('handled_at')->selectRaw('severity, count(*) n')->groupBy('severity')->pluck('n', 'severity'),
+            'unread' => UnitScope::morph(Alert::query(), $request->user())->whereNull('read_at')->whereNull('handled_at')->count()]);
+    }
+
+    /** Buka subjek peringatan: tandai dibaca lalu arahkan ke halaman terkait (satu kunjungan, tanpa balapan request). */
+    public function open(Request $request, Alert $alert)
+    {
+        $this->guard($request, $alert);
+        $alert->update(['read_at' => $alert->read_at ?? now()]);
+        $link = (string) $alert->link;
+        // Hanya tautan internal relatif yang diikuti (cegah open redirect)
+        return redirect(str_starts_with($link, '/') && !str_starts_with($link, '//') ? $link : route('alerts.index'));
     }
 
     public function read(Request $request, Alert $alert)

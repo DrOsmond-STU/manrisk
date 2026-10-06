@@ -13,6 +13,9 @@ use Inertia\Inertia;
 /** Action plan mitigasi: CRUD, progres, pembatalan, kanban (§4.9). */
 class ActionPlanController extends Controller
 {
+    /** Peringatan yang selesai saat action plan tuntas/dibatalkan. */
+    private const ALERTS = ['action_overdue', 'action_due', 'plan_verify'];
+
     public function index(Request $request)
     {
         $this->authorize('viewAny', ActionPlan::class);
@@ -25,10 +28,14 @@ class ActionPlanController extends Controller
         if (!empty($f['mine'])) {
             $q->where('pic_id', $request->user()->id);
         }
-        foreach (['pic_id', 'risk_id', 'unit_id'] as $k) {
+        foreach (['pic_id', 'risk_id'] as $k) {
             if (!empty($f[$k])) {
                 $q->where($k, $f[$k]);
             }
+        }
+        if (!empty($f['unit_id'])) {
+            $unit = \App\Models\OrgUnit::find($f['unit_id']);
+            $q->whereIn('unit_id', $unit ? $unit->descendantIds() : [0]); // termasuk sub-unit
         }
         $plans = $q->orderBy('due_date')->get()->map(fn ($p) => $p->toArray() + ['status' => $p->computedStatus(), 'can_progress' => $request->user()->can('progress', $p), 'can_update' => $request->user()->can('update', $p)]);
         if (!empty($f['status'])) {
@@ -62,7 +69,18 @@ class ActionPlanController extends Controller
     {
         $this->authorize('update', $plan);
         $data = $this->rules($request);
-        $plan->update($data);
+        $old = $plan->risk;
+        $risk = (int) $data['risk_id'] === $plan->risk_id && $old ? $old : Risk::findOrFail($data['risk_id']);
+        if ($risk->id !== $plan->risk_id) {
+            abort_unless($request->user()->can('update', $risk), 403); // pindah ke risiko lain harus berwenang atas risiko tujuan
+        }
+        $plan->update(['unit_id' => ($data['unit_id'] ?? null) ?: $risk->unit_id] + $data);
+        if ($old && $old->id !== $risk->id) {
+            $this->syncRiskStatus($old);
+            if ($risk->status === 'monitoring' && $plan->progress < 100 && !$plan->cancelled_at) {
+                $risk->update(['status' => 'treating']);
+            }
+        }
         return $this->ok('Action plan diperbarui.');
     }
 
@@ -70,6 +88,8 @@ class ActionPlanController extends Controller
     {
         $this->authorize('delete', $plan);
         $plan->delete();
+        app(\App\Services\AlertService::class)->resolve($plan, self::ALERTS);
+        $this->syncRiskStatus($plan->risk);
         return $this->ok('Action plan dihapus.');
     }
 
@@ -98,11 +118,8 @@ class ActionPlanController extends Controller
                 route('action-plans.show', $plan, false), "plan:{$plan->id}:verify:" . now()->format('YmdHi'), array_filter([$plan->risk->owner]));
         }
         if ($data['progress'] >= 100 && $plan->verified_at) {
-            $risk = $plan->risk;
-            if ($risk && $risk->status === 'treating' && !$risk->actionPlans()->whereNull('cancelled_at')->where(fn ($q) => $q->where('progress', '<', 100)->orWhereNull('verified_at'))->exists()
-                && $risk->residual_score <= (int) ($risk->category?->appetite ?? 6)) {
-                $risk->update(['status' => 'monitoring']);
-            }
+            app(\App\Services\AlertService::class)->resolve($plan, self::ALERTS);
+            $this->syncRiskStatus($plan->risk);
         }
         return $this->ok('Progres dicatat.');
     }
@@ -117,14 +134,12 @@ class ActionPlanController extends Controller
         if ($data['action'] === 'reject') {
             ActionProgress::create(['action_plan_id' => $plan->id, 'user_id' => $user->id, 'from_pct' => 100, 'to_pct' => 90, 'note' => 'Verifikasi ditolak: ' . $data['note']]);
             $plan->update(['progress' => 90, 'completed_at' => null]);
+            app(\App\Services\AlertService::class)->resolve($plan, ['plan_verify']);
             return $this->ok('Penyelesaian dikembalikan ke PIC.');
         }
         $plan->update(['verified_at' => now(), 'verified_by' => $user->id]);
-        $risk = $plan->risk;
-        if ($risk && $risk->status === 'treating' && !$risk->actionPlans()->whereNull('cancelled_at')->where(fn ($q) => $q->where('progress', '<', 100)->orWhereNull('verified_at'))->exists()
-            && $risk->residual_score <= (int) ($risk->category?->appetite ?? 6)) {
-            $risk->update(['status' => 'monitoring']);
-        }
+        app(\App\Services\AlertService::class)->resolve($plan, self::ALERTS);
+        $this->syncRiskStatus($plan->risk);
         return $this->ok("Penyelesaian {$plan->code} diverifikasi.");
     }
 
@@ -133,17 +148,28 @@ class ActionPlanController extends Controller
         $this->authorize('update', $plan);
         $data = $request->validate(['reason' => ['required', 'string', 'max:1000']]);
         $plan->update(['cancelled_at' => now(), 'cancel_reason' => $data['reason']]);
+        app(\App\Services\AlertService::class)->resolve($plan, self::ALERTS);
+        $this->syncRiskStatus($plan->risk);
         return $this->ok('Action plan dibatalkan.');
+    }
+
+    /** Semua action plan aktif selesai & terverifikasi dan residual dalam selera → risiko kembali Dipantau. */
+    private function syncRiskStatus(?Risk $risk): void
+    {
+        if ($risk && $risk->status === 'treating' && !$risk->actionPlans()->whereNull('cancelled_at')->where(fn ($q) => $q->where('progress', '<', 100)->orWhereNull('verified_at'))->exists()
+            && $risk->residual_score <= (int) ($risk->category?->appetite ?? 6)) {
+            $risk->update(['status' => 'monitoring']);
+        }
     }
 
     public function show(ActionPlan $plan)
     {
         $this->authorize('view', $plan);
-        $plan->load(['risk:id,code,name', 'pic:id,name', 'unit:id,name', 'progressLog.user:id,name', 'documents.uploader:id,name']);
+        $plan->load(['risk:id,code,name,owner_id,unit_id,organization_id', 'pic:id,name', 'unit:id,name', 'progressLog.user:id,name', 'documents.uploader:id,name', 'verifier:id,name']);
         $u = auth()->user();
-        $plan->load('verifier:id,name');
         return Inertia::render('ActionPlans/Show', ['plan' => $plan->toArray() + ['status' => $plan->computedStatus()], 'can' => ['update' => $u->can('update', $plan), 'progress' => $u->can('progress', $plan),
-            'verify' => $plan->progress >= 100 && !$plan->verified_at && $u->can('update', $plan) && ($u->id === $plan->risk?->owner_id || $u->hasRole('super_admin', 'risk_admin', 'risk_manager'))]]);
+            'verify' => $plan->progress >= 100 && !$plan->verified_at && $u->can('update', $plan) && ($u->id === $plan->risk?->owner_id || $u->hasRole('super_admin', 'risk_admin', 'risk_manager')),
+            'view_risk' => $plan->risk && $u->can('view', $plan->risk), 'upload' => $u->can('create', \App\Models\Document::class)]]);
     }
 
     private function rules(Request $request): array

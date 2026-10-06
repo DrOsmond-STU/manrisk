@@ -1,5 +1,6 @@
 // E2E CRUD lewat UI untuk setiap modul (buat → ubah → aksi khusus → hapus), sebagai Super Admin.
 import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
+const RUN_ID = 'E' + Date.now().toString(36).toUpperCase().slice(-6); // kode unik per putaran (kode terhapus tidak dapat dipakai ulang)
 const BASE = process.env.BASE || 'http://127.0.0.1:8010';
 const PASS = process.env.PASS || 'ManRisk#2026';
 const browser = await chromium.launch();
@@ -24,10 +25,10 @@ const step = async (name, fn) => { try { await fn(); log(name); } catch (e) { er
 await go('/login'); await page.fill('#email', 'admin@manrisk.id'); await page.fill('#pass', PASS); await page.click('button[type=submit]'); await page.waitForURL(/dashboard|password/);
 
 // ---- Organisasi
-await step('unit: tambah', async () => { await go('/organization/units'); await page.click('button:has-text("Tambah unit")'); await fill('Nama unit', 'Unit Uji E2E'); await fill('Kode', 'UJI-E2E'); await pick('Jenis', 'Biro'); await save(); await toast(/ditambahkan/); });
+await step('unit: tambah', async () => { await go('/organization/units'); await page.click('button:has-text("Tambah unit")'); await fill('Nama unit', 'Unit Uji E2E'); await fill('Kode', RUN_ID + 'U'); await pick('Jenis', 'Biro'); await save(); await toast(/ditambahkan/); });
 await step('unit: ubah', async () => { await row('Unit Uji E2E').locator('button:has-text("Ubah")').first().click(); await fill('Nama unit', 'Unit Uji E2E 2'); await save(); await toast(/diperbarui/); });
 await step('unit: hapus', async () => { await row('Unit Uji E2E 2').locator('.btn.danger').first().click(); await toast(/dihapus/); });
-await step('sasaran: tambah/ubah/hapus', async () => { await go('/organization/objectives'); await page.click('.page-h button:has-text("Tambah")'); await fill('Kode', 'SS-E2E'); await fill('Sasaran strategis', 'Sasaran uji E2E'); await save(); await toast(/ditambahkan/);
+await step('sasaran: tambah/ubah/hapus', async () => { await go('/organization/objectives'); await page.click('.page-h button:has-text("Tambah")'); await fill('Kode', RUN_ID + 'S'); await fill('Sasaran strategis', 'Sasaran uji E2E'); await save(); await toast(/ditambahkan/);
   await row('Sasaran uji E2E').locator('button:has-text("Ubah")').click(); await fill('Indikator kinerja', 'IK uji'); await save(); await toast(/diperbarui/); await row('Sasaran uji E2E').locator('.btn.danger').click(); await toast(/dihapus/); });
 await step('program: tambah/hapus', async () => { await page.click('.tabs button:has-text("Program")'); await page.click('.page-h button:has-text("Tambah")'); await fill('Nama program', 'Program E2E'); await save(); await toast(/ditambahkan/); await row('Program E2E').locator('.btn.danger').click(); await toast(/dihapus/); });
 await step('proses: tambah/ubah/hapus', async () => { await page.click('.tabs button:has-text("Proses bisnis")'); await page.click('.page-h button:has-text("Tambah")'); await fill('Nama proses bisnis', 'Proses E2E'); await save(); await toast(/ditambahkan/);
@@ -43,7 +44,7 @@ await step('ruang lingkup/faktor/konsultasi: CRUD', async () => { await go('/con
 // ---- Kriteria & kategori
 await step('kategori: tambah/ubah/hapus', async () => { await go('/criteria'); await page.click('.tabs button:has-text("Taksonomi")'); await page.click('.page-h button:has-text("Kategori")'); await fill('Nama kategori', 'Kategori E2E'); await fill('Risk appetite (skor)', 5); await fill('Risk tolerance (skor)', 8); await save(); await toast(/ditambahkan/);
   await row('Kategori E2E').locator('button:has-text("Ubah")').click(); await fill('Risk tolerance (skor)', 10); await save(); await toast(/diperbarui/); await row('Kategori E2E').locator('.btn.danger').click(); await toast(/dihapus/); });
-await step('kriteria: versi baru & aktifkan versi lama', async () => { await page.click('.tabs button:has-text("Kriteria")'); await page.click('button:has-text("Versi kriteria baru")'); await page.locator('.modal .modal-f .btn.c-green').click(); await toast(/versi 2/);
+await step('kriteria: versi baru & aktifkan versi lama', async () => { await page.click('.tabs button:has-text("Kriteria")'); await page.click('button:has-text("Versi kriteria baru")'); await page.locator('.modal .modal-f .btn.c-green').click(); await toast(/versi \d+/);
   await page.locator('.row:has-text("Versi 1") button:has-text("Aktifkan")').click(); await toast(/diaktifkan/); });
 
 // ---- Kontrol

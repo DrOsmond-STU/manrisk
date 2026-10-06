@@ -663,7 +663,8 @@ button.kpi:hover { transform: translateY(-3px); box-shadow: var(--float-md); }
 .field.span { grid-column: 1 / -1; }
 .field.has-err .inp, .field.has-err select, .field.has-err textarea { border-color: var(--bad-ink); }
 .err-msg { font-size: 11.5px; color: var(--bad-ink); }
-.field .chk { gap: 8px; font-size: 13px; cursor: pointer; }
+.field .chk, label.chk { display: flex; flex-wrap: nowrap; align-items: flex-start; gap: 8px; font-size: 13px; font-weight: 500; cursor: pointer; }
+.field .chk input, label.chk input { flex: none; width: 18px; height: 18px; min-height: 0; margin-top: 1px; accent-color: var(--accent); }
 .field .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
 .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 14px; }
 .form-grid.cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -750,3 +751,7 @@ a.plain { color: inherit; text-decoration: none; } a.plain:hover { text-decorati
 @media print { .side, .top, .btn, .icon-btn { display: none !important; } .app { grid-template-columns: 1fr; } }
 .hm .cell.lv-l { --c: var(--lv-l); } .hm .cell.lv-m { --c: var(--lv-m); } .hm .cell.lv-h { --c: var(--lv-h); } .hm .cell.lv-vh { --c: var(--lv-vh); }
 .hm .cell.zero b { opacity: .35; }
+.login .inp.otp { font-size: 26px; letter-spacing: 10px; text-align: center; }
+.codes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 10px 0; padding: 12px; border-radius: 10px; background: var(--surface-2, #f3f7fc); border: 1px dashed var(--line); }
+.codes span { font-family: var(--f-mono, monospace); font-size: 14px; letter-spacing: 1px; text-align: center; }
+label.chk > span { flex: 1; min-width: 0; }

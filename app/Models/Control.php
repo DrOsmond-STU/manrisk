@@ -72,4 +72,10 @@ class Control extends Model
     {
         return $this->morphMany(Document::class, 'subject');
     }
+
+    /** Improvement yang bersumber dari objek ini (subject_type/subject_id). */
+    public function improvements(): \Illuminate\Database\Eloquent\Relations\MorphMany
+    {
+        return $this->morphMany(Improvement::class, 'subject');
+    }
 }

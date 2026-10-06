@@ -63,4 +63,10 @@ class Kri extends Model
     {
         return $this->hasMany(KriValue::class);
     }
+
+    /** Improvement yang bersumber dari objek ini (subject_type/subject_id). */
+    public function improvements(): \Illuminate\Database\Eloquent\Relations\MorphMany
+    {
+        return $this->morphMany(Improvement::class, 'subject');
+    }
 }

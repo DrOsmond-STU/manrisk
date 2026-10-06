@@ -8,7 +8,10 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-/** Notifikasi early warning: tersimpan di basis data (lonceng) dan dikirim lewat email. */
+/**
+ * Notifikasi early warning. Lonceng aplikasi membaca tabel `alerts` sehingga selalu tampil;
+ * preferensi pengguna hanya mengatur salinan email (preferences.notify berisi 'mail', bawaan aktif).
+ */
 class AlertNotification extends Notification implements ShouldQueue
 {
     use Queueable;
@@ -19,8 +22,9 @@ class AlertNotification extends Notification implements ShouldQueue
 
     public function via(object $notifiable): array
     {
-        $prefs = $notifiable->preferences['notify'] ?? ['database', 'mail'];
-        return array_values(array_intersect(['database', 'mail'], $prefs ?: ['database']));
+        $prefs = $notifiable->preferences['notify'] ?? ['mail'];
+        // 'database' hanya arsip pengiriman (tidak dibaca UI, bukan pilihan pengguna); email mengikuti preferensi
+        return in_array('mail', (array) $prefs, true) ? ['database', 'mail'] : ['database'];
     }
 
     public function toMail(object $notifiable): MailMessage

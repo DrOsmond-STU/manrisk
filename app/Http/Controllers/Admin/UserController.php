@@ -28,8 +28,9 @@ class UserController extends Controller
         if (isset($f['active']) && $f['active'] !== '') {
             $q->where('active', (bool) $f['active']);
         }
+        $mfaRoles = (array) ($request->user()->organization->settings['mfa_required_roles'] ?? []);
         return Inertia::render('Admin/Users', [
-            'users' => $q->orderBy('name')->paginate(25)->withQueryString()->through(fn ($u) => $u->only('id', 'name', 'email', 'role', 'position', 'unit_id', 'scope_units', 'active', 'must_change_password', 'last_login_at', 'last_login_ip', 'created_at') + ['role_label' => $u->roleLabel(), 'unit' => $u->unit?->name]),
+            'users' => $q->orderBy('name')->paginate(25)->withQueryString()->through(fn ($u) => $u->only('id', 'name', 'email', 'role', 'position', 'unit_id', 'scope_units', 'active', 'must_change_password', 'mfa_enabled', 'last_login_at', 'last_login_ip', 'created_at') + ['role_label' => $u->roleLabel(), 'unit' => $u->unit?->name, 'mfa_required' => in_array($u->role, $mfaRoles, true)]),
             'filters' => $f,
             'units' => $this->unitOptions(),
             'stats' => ['total' => User::count(), 'active' => User::where('active', true)->count(), 'by_role' => User::selectRaw('role, count(*) n')->groupBy('role')->pluck('n', 'role')],
@@ -60,6 +61,10 @@ class UserController extends Controller
         $wasActive = $user->active;
         $roleChanged = ($data['role'] ?? $user->role) !== $user->role;
         $user->update(collect($data)->except('password')->all());
+        if ($user->wasChanged('email')) {
+            \App\Support\Mfa::forgetDevices($user);
+            AuthLog::write('email_changed', $user->email, $user, 'by=' . $request->user()->email);
+        }
         if (($wasActive && !$user->active) || $roleChanged) {
             \App\Support\SessionManager::revokeAll($user); // hak akses berubah → sesi lama diputus
         }
@@ -72,8 +77,20 @@ class UserController extends Controller
         $temp = $this->temporaryPassword();
         PasswordPolicy::apply($user, $temp, true);
         \App\Support\SessionManager::revokeAll($user);
+        \App\Support\Mfa::forgetDevices($user);
         AuthLog::write('password_reset', $user->email, $user, 'by=' . $request->user()->email);
         return back()->with('success', "Kata sandi {$user->name} direset.")->with('temp_password', ['email' => $user->email, 'password' => $temp]);
+    }
+
+    /** Reset MFA pengguna: matikan MFA pribadi, hapus kode pemulihan & perangkat tepercaya. */
+    public function resetMfa(Request $request, User $user)
+    {
+        $this->authorize('update', $user);
+        \App\Support\Mfa::reset($user);
+        \App\Support\SessionManager::revokeAll($user);
+        AuthLog::write('mfa_reset', $user->email, $user, 'by=' . $request->user()->email);
+        $note = \App\Support\Mfa::requiredByPolicy($user) ? ' MFA tetap diminta saat login karena diwajibkan kebijakan untuk perannya; pastikan alamat emailnya benar.' : '';
+        return back()->with('success', "MFA {$user->name} direset; kode pemulihan dan perangkat tepercaya dicabut." . $note);
     }
 
     public function toggle(Request $request, User $user)

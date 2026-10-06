@@ -30,3 +30,7 @@ users.json
 throttle.json
 auth.log
 sessions/
+
+# Cache font DomPDF (dibuat otomatis)
+/storage/fonts/*
+!/storage/fonts/.gitkeep

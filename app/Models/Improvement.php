@@ -17,6 +17,9 @@ class Improvement extends Model
         'code',
         'source_type',
         'source_ref',
+        'subject_type',
+        'subject_id',
+        'risk_id',
         'title',
         'description',
         'pic_id',
@@ -32,6 +35,17 @@ class Improvement extends Model
     public function pic(): BelongsTo
     {
         return $this->belongsTo(User::class, 'pic_id');
+    }
+
+    /** Sumber improvement (control / kri / incident / review). */
+    public function subject(): \Illuminate\Database\Eloquent\Relations\MorphTo
+    {
+        return $this->morphTo();
+    }
+
+    public function risk(): BelongsTo
+    {
+        return $this->belongsTo(Risk::class);
     }
 
     public function unit(): BelongsTo
