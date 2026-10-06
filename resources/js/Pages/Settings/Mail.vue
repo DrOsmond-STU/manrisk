@@ -35,7 +35,7 @@ const source = computed(() => (props.mail.enabled ? 'Pengaturan aplikasi (halama
         <Field v-model="test.to" type="email" label="Kirim ke" required :error="test.errors.to" />
         <div class="row" style="justify-content:flex-end"><button class="btn c-blue" type="submit" :disabled="test.processing || !mail.ready"><Icon name="send" />{{ test.processing ? 'Mengirim…' : 'Kirim email uji' }}</button></div>
       </div></form>
-      <div class="card"><div class="card-h"><h3>Contoh hosting cPanel</h3></div><div class="card-b t-sub">Buat akun email (mis. <span class="mono">noreply@domain</span>) di cPanel → Email Accounts. Host: <span class="mono">mail.domain</span>, port 465 (SSL/TLS) atau 587 (STARTTLS), nama pengguna = alamat email lengkap, sandi = sandi akun email. Alamat pengirim harus sama dengan akun tersebut agar tidak ditolak/masuk spam.</div></div>
+      <div class="card"><div class="card-h"><h3>Contoh hosting cPanel</h3></div><div class="card-b t-sub">Buat akun email (mis. <span class="mono">noreply@domain</span>) di cPanel → Email Accounts. Host: nama server hosting (lihat cPanel → <i>Connect Devices</i>; di hosting bersama sertifikat <span class="mono">mail.domain</span> sering milik nama server sehingga koneksi TLS gagal), port 465 (SSL/TLS) atau 587 (STARTTLS), nama pengguna = alamat email lengkap, sandi = sandi akun email. Alamat pengirim harus sama dengan akun tersebut agar tidak ditolak/masuk spam.</div></div>
     </div>
   </div>
 </template>
