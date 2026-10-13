@@ -25,6 +25,7 @@ use App\Http\Controllers\OrgUnitController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\RiskController;
+use App\Http\Controllers\RmiController;
 use App\Http\Controllers\SettingsController;
 use Illuminate\Support\Facades\Route;
 
@@ -150,6 +151,17 @@ Route::middleware(['auth', 'session.policy', 'password.fresh', 'throttle:app'])-
     Route::post('/lessons', [ImprovementController::class, 'storeLesson'])->name('lessons.store');
     Route::delete('/lessons/{lesson}', [ImprovementController::class, 'destroyLesson'])->name('lessons.destroy');
     Route::get('/framework', [ImprovementController::class, 'framework'])->name('framework.index');
+    // Risk Maturity Index (PER-2/MBU/03/2023)
+    Route::get('/rmi', [RmiController::class, 'index'])->name('rmi.index');
+    Route::post('/rmi', [RmiController::class, 'store'])->name('rmi.store');
+    Route::get('/rmi/{assessment}', [RmiController::class, 'show'])->name('rmi.show');
+    Route::put('/rmi/{assessment}/scores', [RmiController::class, 'saveScores'])->name('rmi.scores');
+    Route::post('/rmi/{assessment}/finalize', [RmiController::class, 'finalize'])->name('rmi.finalize');
+    Route::get('/rmi/{assessment}/pdf', [RmiController::class, 'pdf'])->middleware('throttle:20,1')->name('rmi.pdf');
+    Route::delete('/rmi/{assessment}', [RmiController::class, 'destroy'])->name('rmi.destroy');
+    Route::post('/rmi-parameters', [RmiController::class, 'storeParameter'])->name('rmi.parameters.store');
+    Route::put('/rmi-parameters/{parameter}', [RmiController::class, 'updateParameter'])->name('rmi.parameters.update');
+    Route::delete('/rmi-parameters/{parameter}', [RmiController::class, 'destroyParameter'])->name('rmi.parameters.destroy');
     Route::put('/framework/{item}', [ImprovementController::class, 'updateFramework'])->name('framework.update');
 
     // Peringatan

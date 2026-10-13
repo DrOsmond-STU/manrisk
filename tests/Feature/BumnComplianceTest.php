@@ -116,4 +116,37 @@ class BumnComplianceTest extends \Tests\TestCase
         $xlsx->assertOk();
         $this->assertStringStartsWith('PK', $xlsx->getContent());
     }
+
+    public function test_rmi_assessment_flow(): void
+    {
+        $this->as('risk_admin')->post('/rmi', ['year' => now()->year, 'type' => 'internal'])->assertSessionHas('error');
+        $this->as('risk_admin')->post('/rmi-parameters', ['dimension' => 'culture', 'code' => 'BR-1', 'name' => 'Tone at the top', 'weight' => 2])->assertSessionHas('success');
+        $this->as('risk_admin')->post('/rmi-parameters', ['dimension' => 'process', 'code' => 'PR-1', 'name' => 'Proses identifikasi risiko', 'weight' => 1])->assertSessionHas('success');
+        $this->as('risk_admin')->post('/rmi-parameters', ['dimension' => 'process', 'code' => 'PR-1', 'name' => 'Duplikat', 'weight' => 1])->assertSessionHasErrors('code');
+        $this->as('risk_owner')->post('/rmi', ['year' => now()->year, 'type' => 'internal'])->assertForbidden();
+        $this->as('risk_manager')->post('/rmi', ['year' => now()->year, 'type' => 'internal', 'assessor' => 'Tim MR'])->assertRedirect();
+        $a = \App\Models\RmiAssessment::withoutGlobalScopes()->latest('id')->first();
+        $this->assertSame(2, $a->scores()->count());
+        $scores = $a->scores()->with('parameter')->get();
+        $this->as('risk_manager')->post("/rmi/{$a->id}/finalize")->assertSessionHas('error');
+        $payload = ['scores' => $scores->map(fn ($s) => ['id' => $s->id, 'score' => $s->parameter->code === 'BR-1' ? 4 : 1, 'evidence' => 'Bukti'])->all()];
+        $this->as('risk_manager')->put("/rmi/{$a->id}/scores", $payload)->assertSessionHas('success');
+        $this->assertEquals(3.0, $a->fresh()->score); // (4*2 + 1*1) / 3
+        $this->as('risk_manager')->get("/rmi/{$a->id}")->assertInertia(fn ($p) => $p->component('Rmi/Show')->where('result.dimensions.culture', 4)->where('can.edit', true));
+        $this->as('risk_manager')->post("/rmi/{$a->id}/finalize")->assertSessionHas('success');
+        $a->refresh();
+        $this->assertSame('final', $a->status);
+        $this->assertSame(\App\Models\RmiAssessment::phaseFor(3.0), $a->phase);
+        // final tidak dapat diubah atau dihapus
+        $this->as('risk_manager')->put("/rmi/{$a->id}/scores", $payload)->assertStatus(422);
+        $this->as('risk_admin')->delete("/rmi/{$a->id}")->assertStatus(422);
+        // parameter yang dipakai penilaian final dinonaktifkan, bukan dihapus
+        $param = \App\Models\RmiParameter::withoutGlobalScopes()->where('code', 'BR-1')->first();
+        $this->as('risk_admin')->delete("/rmi-parameters/{$param->id}")->assertSessionHas('success');
+        $this->assertFalse($param->fresh()->active);
+        $this->as('board')->get('/rmi')->assertOk()->assertInertia(fn ($p) => $p->where('latest.index', 3)->where('compliance.internal_this_year.status', 'final')->where('compliance.independent_due', true)->where('can.write', false));
+        $pdf = $this->as('board')->get("/rmi/{$a->id}/pdf");
+        $pdf->assertOk();
+        $this->assertStringStartsWith('%PDF', $pdf->getContent());
+    }
 }
