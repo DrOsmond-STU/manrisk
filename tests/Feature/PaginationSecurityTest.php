@@ -100,4 +100,18 @@ class PaginationSecurityTest extends \Tests\TestCase
         $inc->delete();
         $this->as('risk_manager')->get("/alerts/{$alert->id}/open")->assertRedirect('/alerts')->assertSessionHas('warning');
     }
+
+    public function test_audit_trail_does_not_link_deleted_objects(): void
+    {
+        $this->actingAs($this->users['risk_manager']);
+        $inc = \App\Models\Incident::create(['code' => 'INC-Y', 'title' => 'Y', 'occurred_at' => now(), 'status' => 'reported', 'unit_id' => $this->unitA->id]);
+        $alive = $this->makeRisk();
+        $inc->delete();
+        $this->as('super_admin')->get('/admin/audit')->assertInertia(fn ($p) => $p
+            ->where('logs.data', function ($rows) use ($inc, $alive) {
+                $gone = collect($rows)->where('kind', 'incident')->where('subject_id', $inc->id);
+                $live = collect($rows)->where('kind', 'risk')->where('subject_id', $alive->id);
+                return $gone->count() >= 2 && $gone->every(fn ($r) => $r['exists'] === false) && $live->isNotEmpty() && $live->every(fn ($r) => $r['exists'] === true);
+            }));
+    }
 }

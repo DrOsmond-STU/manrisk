@@ -17,8 +17,17 @@ class AuditController extends Controller
         $this->authorize('viewAny', AuditLog::class);
         [$q, $f] = $this->filtered($request);
         $org = $request->user()->organization_id;
+        $page = $q->with('user:id,name,role')->latest('id')->paginate(50)->withQueryString();
+        // objek yang sudah dihapus tidak ditautkan (hindari tautan 404 dari baris audit lama)
+        $alive = [];
+        foreach ($page->getCollection()->groupBy('subject_type') as $type => $rows) {
+            $class = str_contains((string) $type, '\\') ? $type : Relation::getMorphedModel((string) $type);
+            if ($class && class_exists($class)) {
+                $alive[$type] = $class::whereKey($rows->pluck('subject_id')->filter()->unique()->all())->pluck((new $class())->getKeyName())->flip()->all();
+            }
+        }
         return Inertia::render('Admin/Audit', [
-            'logs' => $q->with('user:id,name,role')->latest('id')->paginate(50)->withQueryString()->through(fn ($l) => ['id' => $l->id, 'action' => $l->action, 'subject' => class_basename($l->subject_type),
+            'logs' => $page->through(fn ($l) => ['exists' => isset($alive[$l->subject_type][$l->subject_id]), 'id' => $l->id, 'action' => $l->action, 'subject' => class_basename($l->subject_type),
                 // alias morph (risk, action_plan, …) untuk menautkan baris ke halaman objeknya
                 'kind' => str_contains((string) $l->subject_type, '\\') ? Relation::getMorphAlias($l->subject_type) : $l->subject_type, 'subject_id' => $l->subject_id, 'label' => $l->subject_label, 'changes' => $l->changes, 'context' => $l->context, 'ip' => $l->ip, 'created_at' => $l->created_at, 'user' => $l->user?->name]),
             'filters' => $f,
