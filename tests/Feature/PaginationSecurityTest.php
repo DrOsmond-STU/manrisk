@@ -90,4 +90,14 @@ class PaginationSecurityTest extends \Tests\TestCase
         $this->assertSame(1, AuditLog::withoutGlobalScopes()->where('action', 'scored')->where('subject_id', $a->id)->count());
         $this->as('risk_admin')->post('/rmi-parameters', ['dimension' => 'culture', 'code' => 'BR-2', 'name' => 'Q', 'weight' => 1, 'sort' => 99999999])->assertSessionHasErrors('sort');
     }
+
+    public function test_alert_for_deleted_subject_returns_to_list_instead_of_404(): void
+    {
+        $this->actingAs($this->users['risk_manager']);
+        $inc = \App\Models\Incident::create(['code' => 'INC-X', 'title' => 'Hapus saya', 'occurred_at' => now(), 'status' => 'reported', 'unit_id' => $this->unitA->id]);
+        $alert = \App\Models\Alert::create(['type' => 'incident', 'severity' => 'warning', 'title' => 'A', 'subject_type' => 'incident', 'subject_id' => $inc->id, 'link' => "/incidents/{$inc->id}"]);
+        $this->as('risk_manager')->get("/alerts/{$alert->id}/open")->assertRedirect("/incidents/{$inc->id}");
+        $inc->delete();
+        $this->as('risk_manager')->get("/alerts/{$alert->id}/open")->assertRedirect('/alerts')->assertSessionHas('warning');
+    }
 }
