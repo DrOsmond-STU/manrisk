@@ -13,6 +13,7 @@ class CriteriaVersion extends Model
 
     protected $fillable = [
         'version',
+        'scheme',
         'effective_from',
         'likelihood',
         'impact',

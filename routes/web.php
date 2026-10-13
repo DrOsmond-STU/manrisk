@@ -25,6 +25,7 @@ use App\Http\Controllers\OrgUnitController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\RiskController;
+use App\Http\Controllers\RmiController;
 use App\Http\Controllers\SettingsController;
 use Illuminate\Support\Facades\Route;
 
@@ -50,7 +51,7 @@ Route::middleware(['auth', 'session.policy'])->group(function () {
 
 Route::middleware(['auth', 'session.policy', 'password.fresh', 'throttle:app'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
-    Route::get('/dashboard/executive', [DashboardController::class, 'executive'])->middleware('role:super_admin,risk_admin,risk_manager,management,auditor')->name('dashboard.executive');
+    Route::get('/dashboard/executive', [DashboardController::class, 'executive'])->middleware('role:super_admin,risk_admin,risk_manager,management,board,auditor')->name('dashboard.executive');
 
     // Organisasi
     Route::get('/organization/units', [OrgUnitController::class, 'index'])->name('units.index');
@@ -73,6 +74,7 @@ Route::middleware(['auth', 'session.policy', 'password.fresh', 'throttle:app'])-
     Route::post('/context/scopes', [ContextController::class, 'storeScope'])->name('scopes.store');
     Route::put('/context/scopes/{scope}', [ContextController::class, 'updateScope'])->name('scopes.update');
     Route::delete('/context/scopes/{scope}', [ContextController::class, 'destroyScope'])->name('scopes.destroy');
+    Route::get('/context/scopes/{scope}/kks-pdf', [ContextController::class, 'kksPdf'])->middleware('throttle:20,1')->name('scopes.kks');
     Route::post('/context/factors', [ContextController::class, 'storeFactor'])->name('factors.store');
     Route::put('/context/factors/{factor}', [ContextController::class, 'updateFactor'])->name('factors.update');
     Route::delete('/context/factors/{factor}', [ContextController::class, 'destroyFactor'])->name('factors.destroy');
@@ -150,6 +152,17 @@ Route::middleware(['auth', 'session.policy', 'password.fresh', 'throttle:app'])-
     Route::post('/lessons', [ImprovementController::class, 'storeLesson'])->name('lessons.store');
     Route::delete('/lessons/{lesson}', [ImprovementController::class, 'destroyLesson'])->name('lessons.destroy');
     Route::get('/framework', [ImprovementController::class, 'framework'])->name('framework.index');
+    // Risk Maturity Index (PER-2/MBU/03/2023)
+    Route::get('/rmi', [RmiController::class, 'index'])->name('rmi.index');
+    Route::post('/rmi', [RmiController::class, 'store'])->name('rmi.store');
+    Route::get('/rmi/{assessment}', [RmiController::class, 'show'])->name('rmi.show');
+    Route::put('/rmi/{assessment}/scores', [RmiController::class, 'saveScores'])->name('rmi.scores');
+    Route::post('/rmi/{assessment}/finalize', [RmiController::class, 'finalize'])->name('rmi.finalize');
+    Route::get('/rmi/{assessment}/pdf', [RmiController::class, 'pdf'])->middleware('throttle:20,1')->name('rmi.pdf');
+    Route::delete('/rmi/{assessment}', [RmiController::class, 'destroy'])->name('rmi.destroy');
+    Route::post('/rmi-parameters', [RmiController::class, 'storeParameter'])->name('rmi.parameters.store');
+    Route::put('/rmi-parameters/{parameter}', [RmiController::class, 'updateParameter'])->name('rmi.parameters.update');
+    Route::delete('/rmi-parameters/{parameter}', [RmiController::class, 'destroyParameter'])->name('rmi.parameters.destroy');
     Route::put('/framework/{item}', [ImprovementController::class, 'updateFramework'])->name('framework.update');
 
     // Peringatan
@@ -182,7 +195,7 @@ Route::middleware(['auth', 'session.policy', 'password.fresh', 'throttle:app'])-
     Route::put('/settings/organization', [SettingsController::class, 'updateOrganization'])->name('settings.organization.update');
 
     // Administrasi
-    Route::prefix('admin')->middleware('role:super_admin,risk_admin,risk_manager,auditor')->group(function () {
+    Route::prefix('admin')->middleware('role:super_admin,risk_admin,risk_manager,board,auditor')->group(function () {
         Route::get('/audit', [AuditController::class, 'index'])->name('audit.index');
         Route::get('/audit/export', [AuditController::class, 'export'])->middleware('throttle:10,1')->name('audit.export');
     });

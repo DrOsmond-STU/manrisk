@@ -13,6 +13,9 @@ class ApprovalPolicy extends BasePolicy
 
     protected ?string $unitColumn = null;
 
+    // Super Admin boleh memutus tahap mana pun, tetapi hanya pengajuan yang masih berjalan dan bukan miliknya sendiri
+    protected array $stateful = ['decide'];
+
     public function view(User $user, \Illuminate\Database\Eloquent\Model $model): bool
     {
         return $model->organization_id === $user->organization_id && \App\Support\UnitScope::canSee($user, $model->subject);

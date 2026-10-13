@@ -22,7 +22,7 @@ class MonthlySnapshot extends Command
         $active = fn () => Risk::withoutGlobalScope(OrganizationScope::class)->where('status', '!=', 'closed');
         $active()->chunkById(200, function ($risks) use ($period, &$n) {
             foreach ($risks as $r) {
-                RiskSnapshot::withoutGlobalScopes()->updateOrCreate(['risk_id' => $r->id, 'period' => $period], ['organization_id' => $r->organization_id, 'inherent_score' => $r->inherent_score, 'residual_score' => $r->residual_score, 'level' => $r->residual_level, 'status' => $r->status, 'created_at' => now()]);
+                RiskSnapshot::withoutGlobalScopes()->updateOrCreate(['risk_id' => $r->id, 'period' => $period], ['organization_id' => $r->organization_id, 'inherent_score' => $r->inherent_score, 'residual_score' => $r->residual_score, 'residual_exposure' => $r->residual_exposure, 'level' => $r->residual_level, 'status' => $r->status, 'created_at' => now()]);
                 $n++;
             }
         });

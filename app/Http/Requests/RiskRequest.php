@@ -24,6 +24,7 @@ class RiskRequest extends FormRequest
             'unit_id' => ['required', $exists('org_units')],
             'objective_id' => ['nullable', $exists('objectives')],
             'process_id' => ['nullable', $exists('processes')],
+            'scope_id' => ['nullable', $exists('scopes')],
             'category_id' => ['required', $exists('risk_categories')],
             'owner_id' => ['required', Rule::exists('users', 'id')->where('organization_id', $org)->where('active', true)],
             'cause' => ['required', 'string', 'max:2000'],
@@ -45,6 +46,16 @@ class RiskRequest extends FormRequest
             'residual_dims.*' => ['nullable', 'integer', 'between:1,5'],
             'target_l' => ['required', 'integer', 'between:1,5'],
             'target_i' => ['required', 'integer', 'between:1,5'],
+            // Kuantifikasi risiko (eksposur dalam Rupiah) dan target residual per triwulan RKAP
+            'inherent_exposure' => ['nullable', 'numeric', 'min:0', 'max:9999999999999999'],
+            'residual_exposure' => ['nullable', 'numeric', 'min:0', 'max:9999999999999999'],
+            'target_exposure' => ['nullable', 'numeric', 'min:0', 'max:9999999999999999'],
+            'scope_id' => ['nullable', $exists('scopes')],
+            'quarter_targets' => ['nullable', 'array', 'max:4'],
+            'quarter_targets.*.quarter' => ['required', 'integer', 'between:1,4', 'distinct'],
+            'quarter_targets.*.target_l' => ['required', 'integer', 'between:1,5'],
+            'quarter_targets.*.target_i' => ['required', 'integer', 'between:1,5'],
+            'quarter_targets.*.target_exposure' => ['nullable', 'numeric', 'min:0', 'max:9999999999999999'],
             'control_ids' => ['nullable', 'array'],
             'control_ids.*' => ['integer', $exists('controls')],
             'note' => ['nullable', 'string', 'max:1000'],
@@ -65,6 +76,13 @@ class RiskRequest extends FormRequest
             }
             if ($s->score((int) $this->target_l, (int) $this->target_i) > $s->score((int) $this->residual_l, (int) $this->residual_i)) {
                 $v->errors()->add('target_l', 'Skor target tidak boleh lebih besar dari skor residual.');
+            }
+            $ie = $this->inherent_exposure; $re = $this->residual_exposure; $te = $this->target_exposure;
+            if (is_numeric($ie) && is_numeric($re) && $re > $ie) {
+                $v->errors()->add('residual_exposure', 'Eksposur residual tidak boleh lebih besar dari eksposur inheren.');
+            }
+            if (is_numeric($re) && is_numeric($te) && $te > $re) {
+                $v->errors()->add('target_exposure', 'Eksposur target tidak boleh lebih besar dari eksposur residual.');
             }
             if ($this->user()->isUnitScoped() && !$this->user()->canAccessUnit((int) $this->unit_id)) {
                 $v->errors()->add('unit_id', 'Unit di luar cakupan Anda.');

@@ -92,7 +92,7 @@ class ReviewController extends Controller
         $period = now()->format('Y-m');
         $n = 0;
         foreach (Risk::all() as $r) {
-            RiskSnapshot::updateOrCreate(['risk_id' => $r->id, 'period' => $period], ['organization_id' => $r->organization_id, 'inherent_score' => $r->inherent_score, 'residual_score' => $r->residual_score, 'level' => $r->residual_level, 'status' => $r->status, 'created_at' => now()]);
+            RiskSnapshot::updateOrCreate(['risk_id' => $r->id, 'period' => $period], ['organization_id' => $r->organization_id, 'inherent_score' => $r->inherent_score, 'residual_score' => $r->residual_score, 'residual_exposure' => $r->residual_exposure, 'level' => $r->residual_level, 'status' => $r->status, 'created_at' => now()]);
             $n++;
         }
         return $this->ok("Snapshot {$period} dibuat untuk {$n} risiko.");

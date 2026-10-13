@@ -6,7 +6,7 @@ import Kpi from '../../Components/Kpi.vue';
 import Heatmap from '../../Components/Heatmap.vue';
 import Chart from '../../Components/Chart.vue';
 import Pill from '../../Components/Pill.vue';
-import { fmt } from '../../lib/format';
+import { fmt, lvKey } from '../../lib/format';
 const props = defineProps({ filters: Object, units: Array, kpi: Object, metrics: Object, by_level: Object, heat: Object, heat_inherent: Object, by_category: Array, by_unit: Array, by_objective: Array, by_process: Array, top_risks: Array, emerging: Array, trend: Array, alerts: Array, upcoming: Array, kris: Array, recent: Array, ai_summary: String });
 const page = usePage();
 const user = page.props.auth.user;
@@ -38,7 +38,7 @@ const subjLabel = { risk: 'risiko', action_plan: 'action plan', control: 'kontro
   <div v-if="ai_summary" class="alert-box info"><Icon name="spark" /><div><b>Ringkasan</b> <span class="hint">(disusun otomatis, diperbarui tiap 15 menit)</span><div style="margin-top:2px">{{ ai_summary }}</div></div></div>
   <div class="kpis">
     <Link :href="q({})" class="plain"><Kpi label="Risiko aktif" :value="kpi.total" :sub="`${kpi.new_year} baru · ${kpi.closed_year} ditutup tahun ini`" /></Link>
-    <Link :href="q({ level: 'high,very_high' })" class="plain"><Kpi label="Tinggi & sangat tinggi" :value="kpi.high" level="vh" sub="residual ≥ 10" /></Link>
+    <Link :href="q({ level: 'high,very_high' })" class="plain"><Kpi :label="`${$page.props.labels.levels.high} & ${$page.props.labels.levels.very_high}`" :value="kpi.high" level="vh" sub="dua level teratas" /></Link>
     <Link :href="q({ evaluation: 'critical' })" class="plain"><Kpi label="Kritis (≥ 20)" :value="kpi.critical" level="vh" sub="perlu keputusan manajemen" /></Link>
     <Link :href="q({ status: 'treating' })" class="plain"><Kpi label="Dalam penanganan" :value="kpi.treating" :sub="`${kpi.above_target} di atas target`" level="h" /></Link>
     <Link :href="`/action-plans?status=overdue${unitQ()}`" class="plain"><Kpi label="Action plan terlambat" :value="kpi.plans_overdue" :sub="`dari ${kpi.plans_total} rencana aktif`" level="m" /></Link>
@@ -53,7 +53,7 @@ const subjLabel = { risk: 'risiko', action_plan: 'action plan', control: 'kontro
   </div>
   <div class="s-grid">
     <div class="card" style="grid-column:span 5"><div class="card-h"><h3>Peta risiko</h3><div class="seg"><button type="button" :class="{ on: heatMode === 'inherent' }" @click="heatMode = 'inherent'">Inheren</button><button type="button" :class="{ on: heatMode === 'residual' }" @click="heatMode = 'residual'">Residual</button></div></div><div class="card-b"><Heatmap :counts="heatMode === 'residual' ? heat : heat_inherent" compact @select="(k, l, i) => router.visit(q({ mode: heatMode, l, i }))" />
-      <div class="row" style="margin-top:12px;gap:14px"><Link v-for="(n, k) in by_level" :key="k" :href="q({ level: k })" class="lv plain" :class="'lv-' + { low: 'l', medium: 'm', high: 'h', very_high: 'vh' }[k]"><i></i>{{ $page.props.labels.levels[k] }} <b>{{ n }}</b></Link></div><p class="hint">Klik sel untuk membuka register tersaring.</p></div></div>
+      <div class="row" style="margin-top:12px;gap:14px"><Link v-for="(n, k) in by_level" :key="k" :href="q({ level: k })" class="lv plain" :class="'lv-' + lvKey(k)"><i></i>{{ $page.props.labels.levels[k] }} <b>{{ n }}</b></Link></div><p class="hint">Klik sel untuk membuka register tersaring.</p></div></div>
     <div class="card" style="grid-column:span 4"><div class="card-h"><h3>Perjalanan risiko</h3><span class="sub">rata-rata skor</span></div><div class="card-b"><Chart :option="journeyOpt" height="240px" /></div></div>
     <div class="card" style="grid-column:span 3"><div class="card-h"><h3>Tren residual</h3><Link href="/risks/residual" class="btn sm ghost c-indigo">Detail</Link></div><div class="card-b"><Chart :option="trendOpt" height="240px" /></div></div>
     <div class="card" style="grid-column:span 7"><div class="card-h"><h3>Risiko prioritas</h3><Link :href="q({ sort: 'residual_score', dir: 'desc' })" class="btn sm ghost c-indigo">Semua risiko</Link></div>

@@ -182,6 +182,7 @@ class ActionPlanController extends Controller
             'pic_id' => ['nullable', Rule::exists('users', 'id')->where('organization_id', $org)],
             'unit_id' => ['nullable', Rule::exists('org_units', 'id')->where('organization_id', $org)],
             'budget' => ['nullable', 'numeric', 'min:0', 'max:999999999999'],
+            'actual_cost' => ['nullable', 'numeric', 'min:0', 'max:999999999999'],
             'priority' => ['required', Rule::in(array_keys(config('manrisk.priorities')))],
             'start_date' => ['nullable', 'date'],
             'due_date' => ['required', 'date', 'after_or_equal:start_date'],

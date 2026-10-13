@@ -8,7 +8,7 @@ import Field from '../../Components/Field.vue';
 import Heatmap from '../../Components/Heatmap.vue';
 import Pill from '../../Components/Pill.vue';
 import { lvFromScore } from '../../lib/format';
-const props = defineProps({ risk: Object, units: Array, categories: Array, owners: Array, objectives: Array, processes: Array, controls: Array, criteria: Object, prefill: { type: Object, default: () => ({}) }, ai: Boolean });
+const props = defineProps({ risk: Object, units: Array, categories: Array, owners: Array, objectives: Array, processes: Array, scopes: { type: Array, default: () => [] }, controls: Array, criteria: Object, prefill: { type: Object, default: () => ({}) }, ai: Boolean });
 const L = usePage().props.labels;
 const edit = !!props.risk;
 const r = props.risk || props.prefill || {};
@@ -17,6 +17,8 @@ const form = useForm({
   cause: r.cause || '', event: r.event || '', impact: r.impact || '', source_type: r.source_type || 'internal', source_kind: r.source_kind || 'process', existing_controls: r.existing_controls || '',
   treatment: r.treatment || 'reduce', treatment_note: r.treatment_note || '', due_date: r.due_date ? String(r.due_date).slice(0, 10) : '',
   inherent_l: r.inherent_l || 3, inherent_i: r.inherent_i || 3, inherent_dims: r.inherent_dims || {}, residual_l: r.residual_l || 2, residual_i: r.residual_i || 3, residual_dims: r.residual_dims || {}, target_l: r.target_l || 1, target_i: r.target_i || 3,
+  inherent_exposure: r.inherent_exposure ?? '', residual_exposure: r.residual_exposure ?? '', target_exposure: r.target_exposure ?? '', scope_id: r.scope_id || '',
+  quarter_targets: [1, 2, 3, 4].map((q) => { const t = (r.quarter_targets || []).find((x) => x.quarter === q); return { quarter: q, on: !!t, target_l: t?.target_l || r.target_l || 1, target_i: t?.target_i || r.target_i || 3, target_exposure: t?.target_exposure ?? '' }; }),
   control_ids: r.control_ids || [], note: '', plan_title: '', plan_due: '', plan_pic_id: '', from_incident: props.prefill?.from_incident || null,
 });
 // ---- AI: kandidat risiko & generator pernyataan ----
@@ -63,7 +65,10 @@ const statement = computed(() => (form.cause && form.event && form.impact) ? `Ka
 const warn = computed(() => { const w = []; if (score(form.residual_l, form.residual_i) > score(form.inherent_l, form.inherent_i)) w.push('Skor residual tidak boleh melebihi skor inheren.'); if (score(form.target_l, form.target_i) > score(form.residual_l, form.residual_i)) w.push('Skor target tidak boleh melebihi skor residual.'); return w; });
 const stepOk = computed(() => step.value === 1 ? (form.name && form.unit_id && form.category_id && form.owner_id && form.cause && form.event && form.impact) : step.value === 2 ? !warn.value.length : true);
 // Batalkan cek duplikat yang tertunda agar request latar belakang tidak "memakan" pesan flash hasil simpan
-const submit = () => { clearTimeout(dt); if (edit) form.put(`/risks/${r.id}`); else form.post('/risks'); };
+// target triwulan yang tidak dicentang tidak dikirim; eksposur kosong dikirim null
+const payload = (d) => ({ ...d, quarter_targets: d.quarter_targets.filter((t) => t.on).map(({ on, ...t }) => ({ ...t, target_exposure: t.target_exposure === '' ? null : t.target_exposure })),
+  inherent_exposure: d.inherent_exposure === '' ? null : d.inherent_exposure, residual_exposure: d.residual_exposure === '' ? null : d.residual_exposure, target_exposure: d.target_exposure === '' ? null : d.target_exposure, scope_id: d.scope_id || null });
+const submit = () => { clearTimeout(dt); form.transform(payload); if (edit) form.put(`/risks/${r.id}`); else form.post('/risks'); };
 const toggleControl = (id) => { const i = form.control_ids.indexOf(id); if (i >= 0) form.control_ids.splice(i, 1); else form.control_ids.push(id); };
 const firstErrorStep = () => { const e = Object.keys(form.errors); if (!e.length) return null; if (e.some((k) => ['name', 'unit_id', 'category_id', 'owner_id', 'cause', 'event', 'impact', 'source_kind', 'objective_id', 'process_id'].includes(k))) return 1; if (e.some((k) => k.includes('_l') || k.includes('_i') || k.includes('dims'))) return 2; return 3; };
 </script>
@@ -82,9 +87,10 @@ const firstErrorStep = () => { const e = Object.keys(form.errors); if (!e.length
       <Field v-model="form.name" label="Nama risiko" required span :error="form.errors.name" maxlength="255" placeholder="mis. Gangguan layanan pusat data" />
       <Field v-model="form.unit_id" type="select" label="Unit kerja pemilik" :options="units" required :error="form.errors.unit_id" />
       <Field v-model="form.owner_id" type="select" label="Risk owner" :options="owners" required :error="form.errors.owner_id" />
-      <Field v-model="form.category_id" type="select" label="Kategori (taksonomi)" :options="categories" required :error="form.errors.category_id" :hint="cat ? `Appetite ${cat.appetite} · Tolerance ${cat.tolerance}` : ''" />
+      <Field v-model="form.category_id" type="select" label="Kategori (taksonomi T1 › T2 › T3)" :options="categories" option-label="label" required :error="form.errors.category_id" :hint="cat ? `Appetite ${cat.appetite} · Tolerance ${cat.tolerance}` : ''" />
       <Field v-model="form.objective_id" type="select" label="Sasaran strategis terkait" :options="objectives.map((o) => ({ id: o.id, name: `${o.code} · ${o.name}` }))" :error="form.errors.objective_id" />
       <Field v-model="form.process_id" type="select" label="Proses bisnis" :options="unitProcesses" :error="form.errors.process_id" />
+      <Field v-model="form.scope_id" type="select" label="Ruang lingkup / kajian KKS" :options="scopes" :error="form.errors.scope_id" hint="Kaitkan risiko dengan kajian Kegiatan Korporasi Signifikan bila ada" />
       <div class="row" style="gap:12px"><Field v-model="form.source_type" type="select" label="Sumber" :options="{ internal: 'Internal', external: 'Eksternal' }" empty="" required style="flex:1" /><Field v-model="form.source_kind" type="select" label="Jenis sumber" :options="L.source_kinds" empty="" required style="flex:1" :error="form.errors.source_kind" /></div>
       <div v-if="ai && !edit" class="field span"><label>Susun pernyataan dari catatan bebas (opsional)</label><div class="row" style="gap:8px"><input v-model="aiNote" class="inp" style="flex:1" maxlength="2000" placeholder="mis. server tunggal tanpa cadangan, kalau mati layanan perizinan berhenti dan masyarakat komplain"><button type="button" class="btn c-violet" :disabled="aiBusy" @click="aiStatement"><Icon name="spark" />Susun</button></div></div>
       <Field v-model="form.cause" type="textarea" label="Penyebab (karena…)" required span :error="form.errors.cause" :rows="2" maxlength="2000" />
@@ -100,9 +106,13 @@ const firstErrorStep = () => { const e = Object.keys(form.errors); if (!e.length
         <Heatmap pick :matrix="matrix" :selected="`${form[p[0] + '_l']}-${form[p[0] + '_i']}`" compact @select="(k, l, i) => pick(p[0], k, l, i)" />
         <div class="row between"><div><span class="hint">Kemungkinan × Dampak</span><div class="score-big">{{ score(form[p[0] + '_l'], form[p[0] + '_i']) }}</div></div><div class="stack" style="gap:4px;align-items:flex-end"><Pill kind="level" :value="lvOf(form[p[0] + '_l'], form[p[0] + '_i'])" /><span class="hint">L{{ form[p[0] + '_l'] }} · I{{ form[p[0] + '_i'] }}</span></div></div>
         <div class="row" style="gap:8px"><Field v-model="form[p[0] + '_l']" type="select" label="Kemungkinan" :options="(criteria?.likelihood || [1,2,3,4,5].map((v)=>({v,label:'Skala '+v}))).map((x) => ({ id: x.v, name: `${x.v} · ${x.label}` }))" empty="" style="flex:1" :error="form.errors[p[0] + '_l']" /><Field v-model="form[p[0] + '_i']" type="select" label="Dampak" :options="(criteria?.impact || [1,2,3,4,5].map((v)=>({v,label:'Skala '+v}))).map((x) => ({ id: x.v, name: `${x.v} · ${x.label}` }))" empty="" style="flex:1" /></div>
+        <Field v-model="form[p[0] + '_exposure']" type="number" min="0" step="1000" :label="`Eksposur ${p[0] === 'inherent' ? 'inheren' : p[0] === 'residual' ? 'residual' : 'target'} (Rp)`" :error="form.errors[p[0] + '_exposure']" hint="Kuantifikasi nilai dampak finansial (opsional)" />
         <details v-if="p[0] !== 'target' && dims.length"><summary class="hint" style="cursor:pointer">Dampak per dimensi (opsional, nilai tertinggi dipakai)</summary><div class="form-grid" style="margin-top:8px"><Field v-for="d in dims" :key="d.key" v-model="form[p[0] + '_dims'][d.key]" type="select" :label="d.label" :options="[1, 2, 3, 4, 5].map((v) => ({ id: v, name: String(v) }))" empty="—" @update:modelValue="dimChange(p[0])" /></div></details>
       </div></div>
       <div v-if="warn.length" class="alert-box bad" style="grid-column:1/-1"><Icon name="alert" /><span>{{ warn.join(' ') }}</span></div>
+      <div class="card" style="grid-column:1/-1"><div class="card-h"><h3>Target residual per triwulan {{ new Date().getFullYear() }}</h3><span class="sub">Perencanaan risiko yang menyatu dengan RKAP (PER-2/MBU/03/2023); realisasi dibandingkan otomatis dari pemantauan bulanan</span></div><div class="card-b flush tbl-wrap"><table class="tbl"><thead><tr><th>Triwulan</th><th>Dipakai</th><th>Kemungkinan</th><th>Dampak</th><th class="num">Skor</th><th>Eksposur target (Rp)</th></tr></thead><tbody>
+        <tr v-for="t in form.quarter_targets" :key="t.quarter"><td class="t-main">TW{{ t.quarter }}</td><td><input type="checkbox" v-model="t.on" :aria-label="`Tetapkan target TW${t.quarter}`"></td><td><select v-model.number="t.target_l" :disabled="!t.on" class="inp" style="width:80px"><option v-for="v in 5" :key="v" :value="v">{{ v }}</option></select></td><td><select v-model.number="t.target_i" :disabled="!t.on" class="inp" style="width:80px"><option v-for="v in 5" :key="v" :value="v">{{ v }}</option></select></td><td class="num mono">{{ t.on ? t.target_l * t.target_i : '—' }}</td><td><input v-model="t.target_exposure" type="number" min="0" step="1000" class="inp" :disabled="!t.on" style="width:180px"></td></tr>
+      </tbody></table><p v-if="form.errors['quarter_targets']" class="err-msg" style="padding:8px 12px">{{ form.errors['quarter_targets'] }}</p></div></div>
     </div>
 
     <div v-show="step === 3" class="card"><div class="card-h"><h3>3. Evaluasi & treatment</h3><span class="sub">ISO 31000 §6.4.4 – §6.5</span></div><div class="card-b form-grid">

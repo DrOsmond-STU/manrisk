@@ -56,5 +56,42 @@ return [
     'incident_statuses' => ['reported' => 'Dilaporkan', 'investigating' => 'Investigasi', 'corrective' => 'Tindakan Korektif', 'closed' => 'Ditutup'],
     'effectiveness' => [1 => 'Tidak Efektif', 2 => 'Sebagian Efektif', 3 => 'Efektif', 4 => 'Sangat Efektif'],
     'priorities' => ['low' => 'Rendah', 'medium' => 'Sedang', 'high' => 'Tinggi', 'critical' => 'Kritis'],
-    'unit_types' => ['organization' => 'Organisasi', 'deputy' => 'Deputi/Eselon I', 'directorate' => 'Direktorat', 'bureau' => 'Biro', 'division' => 'Bagian', 'subdivision' => 'Subbagian', 'unit' => 'Unit'],
+    // Risk Maturity Index (PER-2/MBU/03/2023; petunjuk teknis SK-8/DKU.MBU/12/2023). Lima dimensi penilaian dan lima fase.
+    // Batas fase di bawah adalah nilai awal: fase awal 1,0–1,8 dan fase berkembang mulai 1,9 sesuai juknis; batas fase
+    // berikutnya WAJIB dicocokkan dengan lampiran juknis yang berlaku sebelum dipakai untuk pelaporan resmi.
+    // Kegiatan Korporasi Signifikan (PER-2/MBU/03/2023): wajib disertai kajian risiko sebelum diputuskan
+    'kks_types' => [
+        'investment' => 'Investasi / penyertaan modal',
+        'acquisition' => 'Penggabungan, peleburan, pengambilalihan, pemisahan',
+        'subsidiary' => 'Pendirian / pembubaran anak perusahaan',
+        'financing' => 'Pinjaman / penerbitan surat utang',
+        'asset' => 'Pengalihan / pendayagunaan aset tetap',
+        'partnership' => 'Kerja sama strategis / joint venture',
+        'project' => 'Proyek strategis / Proyek Strategis Nasional',
+        'other' => 'Aksi korporasi lain',
+    ],
+    'decision_organs' => ['direksi' => 'Direksi', 'dekom' => 'Dewan Komisaris / Dewan Pengawas', 'rups' => 'RUPS / Menteri', 'holding' => 'BUMN induk (holding)'],
+
+    'rmi' => [
+        'dimensions' => [
+            'culture' => 'Budaya dan kapabilitas risiko',
+            'governance' => 'Organisasi dan tata kelola risiko',
+            'framework' => 'Kerangka risiko dan kepatuhan',
+            'process' => 'Proses dan kontrol risiko',
+            'model' => 'Model, data, dan teknologi risiko',
+        ],
+        'phases' => [
+            'initial' => ['label' => 'Fase Awal (Initial)', 'max' => 1.8],
+            'emerging' => ['label' => 'Fase Berkembang (Emerging)', 'max' => 2.6],
+            'good' => ['label' => 'Fase Praktik yang Baik (Good Practice)', 'max' => 3.4],
+            'strong' => ['label' => 'Fase Praktik yang Lebih Baik (Strong Practice)', 'max' => 4.2],
+            'best' => ['label' => 'Fase Praktik Terbaik (Best Practice)', 'max' => 5.0],
+        ],
+        'independent_every_years' => 3,
+    ],
+    // Klasifikasi BUMN berdasarkan intensitas risiko (PER-2/MBU/03/2023); menentukan kedalaman penerapan tata kelola risiko
+    'risk_intensity' => ['systemic' => 'Sistemik', 'significant' => 'Signifikan', 'neutral' => 'Netral'],
+    'entity_types' => ['bumn' => 'BUMN', 'holding' => 'BUMN Induk (Holding)', 'subsidiary' => 'Anak Perusahaan BUMN', 'other' => 'Lainnya'],
+    'committees' => ['audit' => 'Komite Audit', 'risk' => 'Komite Pemantau Risiko'],
+    'unit_types' => ['organization' => 'Organisasi', 'holding' => 'BUMN Induk (Holding)', 'subsidiary' => 'Anak Perusahaan', 'deputy' => 'Deputi/Eselon I', 'directorate' => 'Direktorat', 'bureau' => 'Biro', 'division' => 'Bagian', 'subdivision' => 'Subbagian', 'unit' => 'Unit'],
 ];

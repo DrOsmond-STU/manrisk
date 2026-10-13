@@ -20,7 +20,7 @@ class ReportController extends Controller
             'types' => ReportService::TYPES,
             'formats' => ReportService::FORMATS,
             'units' => $this->unitOptions(),
-            'categories' => \App\Models\RiskCategory::where('active', true)->orderBy('sort')->get(['id', 'name']),
+            'categories' => \App\Models\RiskCategory::tree()->map(fn ($c) => ['id' => $c->id, 'name' => str_repeat('— ', $c->depth - 1) . $c->name])->values(),
             'owners' => $this->userOptions(),
             // filter awal dari query string, mis. tautan "Laporan dari filter ini" di Risk Register
             'initial' => (object) collect(\Illuminate\Support\Facades\Validator::make($request->query(), ['type' => ['nullable', Rule::in(array_keys(ReportService::TYPES))]] + $this->filterRules())->valid())
@@ -37,6 +37,7 @@ class ReportController extends Controller
             'type' => ['required', Rule::in(array_keys(ReportService::TYPES))],
             'format' => ['required', Rule::in(['pdf', 'xlsx'])],
             'year' => ['nullable', 'integer', 'between:2000,2100'],
+            'quarter' => ['nullable', 'integer', 'between:1,4'],
             'include_closed' => ['nullable', 'boolean'],
             'limit' => ['nullable', 'integer', 'in:10,20'],
             'period_from' => ['nullable', 'date_format:Y-m'], 'period_to' => ['nullable', 'date_format:Y-m'],
@@ -44,7 +45,7 @@ class ReportController extends Controller
         if (!in_array($data['format'], ReportService::FORMATS[$data['type']], true)) {
             return back()->withErrors(['format' => 'Format tidak tersedia untuk laporan ini.']);
         }
-        $params = collect($data)->only([...ReportService::RISK_FILTERS, 'year', 'include_closed', 'limit', 'period_from', 'period_to'])->filter()->all();
+        $params = collect($data)->only([...ReportService::RISK_FILTERS, 'year', 'quarter', 'include_closed', 'limit', 'period_from', 'period_to'])->filter()->all();
         $job = ReportJob::create(['user_id' => $request->user()->id, 'type' => $data['type'], 'format' => $data['format'], 'params' => $params ?: null, 'status' => 'running']);
         try {
             $out = $service->render($data['type'], $data['format'], $request->user(), $params);
@@ -61,7 +62,7 @@ class ReportController extends Controller
     // ---- Laporan terjadwal (§13, skenario #24) ----
     public function storeSchedule(Request $request)
     {
-        abort_if($request->user()->isReadOnly() && !$request->user()->hasRole('management'), 403);
+        abort_if($request->user()->isReadOnly() && !$request->user()->hasRole('management', 'board'), 403);
         $data = $request->validate([
             'type' => ['required', Rule::in(array_keys(ReportService::TYPES))],
             'format' => ['required', Rule::in(['pdf', 'xlsx'])],
@@ -85,7 +86,7 @@ class ReportController extends Controller
             }
         };
         return ['q' => ['nullable', 'string', 'max:100'], 'unit_id' => ['nullable', 'integer'], 'category_id' => ['nullable', 'integer'], 'owner_id' => ['nullable', 'integer'], 'objective_id' => ['nullable', 'integer'], 'process_id' => ['nullable', 'integer'],
-            'level' => ['nullable', 'string', 'max:60', $list(array_keys(\App\Support\Scoring::LEVELS))], 'evaluation' => ['nullable', 'string', 'max:80', $list(array_keys(\App\Support\Scoring::EVALUATIONS))],
+            'level' => ['nullable', 'string', 'max:60', $list(array_keys(\App\Support\Scoring::LEVEL_ORDER))], 'evaluation' => ['nullable', 'string', 'max:80', $list(array_keys(\App\Support\Scoring::EVALUATIONS))],
             'status' => ['nullable', Rule::in([...array_keys(config('manrisk.risk_statuses')), 'active'])]];
     }
 

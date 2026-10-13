@@ -12,7 +12,7 @@ const role = usePage().props.auth.user.role;
 const MOD = [[/risk register|identifikasi|treatment/i, '/risks', 'Risk Register'], [/analisis|matriks/i, '/risks/matrix', 'Peta Risiko'], [/evaluasi/i, '/risks/evaluation', 'Evaluasi'], [/kriteria|taksonomi/i, '/criteria', 'Kriteria'], [/konteks|konsultasi/i, '/context', 'Konteks'],
   [/organisasi/i, '/organization/units', 'Organisasi'], [/objective/i, '/organization/objectives', 'Sasaran'], [/kri|early warning/i, '/kris', 'KRI'], [/monitoring/i, '/risks/residual', 'Monitoring'], [/review/i, '/reviews', 'Review'], [/action plan/i, '/action-plans', 'Action Plan'],
   [/continual|lesson/i, '/improvements', 'Perbaikan'], [/dokumen/i, '/documents', 'Dokumen'], [/insiden/i, '/incidents', 'Insiden'], [/loss/i, '/incidents/losses', 'Loss DB'], [/laporan/i, '/reports', 'Laporan'], [/notifikasi/i, '/alerts', 'Peringatan'], [/approval/i, '/approvals', 'Persetujuan'],
-  [/audit trail/i, '/admin/audit', 'Audit Trail', ['super_admin', 'risk_admin', 'risk_manager', 'auditor']], [/executive/i, '/dashboard/executive', 'Executive', ['super_admin', 'risk_admin', 'risk_manager', 'management', 'auditor']]];
+  [/audit trail/i, '/admin/audit', 'Audit Trail', ['super_admin', 'risk_admin', 'risk_manager', 'board', 'auditor']], [/executive/i, '/dashboard/executive', 'Executive', ['super_admin', 'risk_admin', 'risk_manager', 'management', 'board', 'auditor']]];
 const links = (m) => MOD.filter(([re, , , roles]) => re.test(m || '') && (!roles || roles.includes(role))).map(([, href, label]) => ({ href, label }));
 const groups = [['principle', 'Prinsip (klausul 4)'], ['framework', 'Kerangka kerja (klausul 5)'], ['process', 'Proses (klausul 6)']];
 const edit = ref(null);

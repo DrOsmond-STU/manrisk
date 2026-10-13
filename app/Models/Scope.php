@@ -22,7 +22,20 @@ class Scope extends Model
         'unit_id',
         'area',
         'created_by',
+        'kind',
+        'kks_type',
+        'transaction_value',
+        'decision_organ',
+        'decision_date',
+        'conclusion',
     ];
+
+    protected $casts = ['transaction_value' => 'float', 'decision_date' => 'date'];
+
+    public function risks(): HasMany
+    {
+        return $this->hasMany(Risk::class, 'scope_id');
+    }
 
     public function unit(): BelongsTo
     {

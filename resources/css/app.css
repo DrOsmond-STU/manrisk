@@ -23,6 +23,7 @@
   --side-hi: rgba(255, 255, 255, .12);
   /* status risiko (tetap, selalu disertai label) */
   --lv-l: #0ca30c;
+  --lv-lm: #8cbf26;
   --lv-m: #fab219;
   --lv-h: #ec835a;
   --lv-vh: #d03b3b;
@@ -184,7 +185,7 @@ svg.ic { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-wid
 /* Level chip */
 .lv { --c: var(--muted); display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px 2px 7px; border-radius: 999px; font-size: 11.5px; font-weight: 600; white-space: nowrap; background: color-mix(in oklab, var(--c) 17%, var(--surface)); color: var(--fg); }
 .lv i { width: 8px; height: 8px; border-radius: 2px; background: var(--c); flex: none; }
-.lv-l { --c: var(--lv-l); } .lv-m { --c: var(--lv-m); } .lv-h { --c: var(--lv-h); } .lv-vh { --c: var(--lv-vh); }
+.lv-l { --c: var(--lv-l); } .lv-lm { --c: var(--lv-lm); } .lv-m { --c: var(--lv-m); } .lv-h { --c: var(--lv-h); } .lv-vh { --c: var(--lv-vh); }
 .score { display: inline-grid; place-items: center; min-width: 30px; height: 24px; padding: 0 6px; border-radius: 6px; font-family: var(--f-mono); font-weight: 600; font-size: 12px; background: color-mix(in oklab, var(--c) 22%, var(--surface)); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--c) 55%, transparent); }
 
 /* Pills */
@@ -749,7 +750,7 @@ a.plain { color: inherit; text-decoration: none; } a.plain:hover { text-decorati
 .code-link { font-family: var(--f-mono); font-size: 12px; color: var(--accent); text-decoration: none; font-weight: 600; } .code-link:hover { text-decoration: underline; }
 .btn.block { width: 100%; justify-content: center; }
 @media print { .side, .top, .btn, .icon-btn { display: none !important; } .app { grid-template-columns: 1fr; } }
-.hm .cell.lv-l { --c: var(--lv-l); } .hm .cell.lv-m { --c: var(--lv-m); } .hm .cell.lv-h { --c: var(--lv-h); } .hm .cell.lv-vh { --c: var(--lv-vh); }
+.hm .cell.lv-l { --c: var(--lv-l); } .hm .cell.lv-lm { --c: var(--lv-lm); } .hm .cell.lv-m { --c: var(--lv-m); } .hm .cell.lv-h { --c: var(--lv-h); } .hm .cell.lv-vh { --c: var(--lv-vh); }
 .hm .cell.zero b { opacity: .35; }
 .login .inp.otp { font-size: 26px; letter-spacing: 10px; text-align: center; }
 .codes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 10px 0; padding: 12px; border-radius: 10px; background: var(--surface-2, #f3f7fc); border: 1px dashed var(--line); }
