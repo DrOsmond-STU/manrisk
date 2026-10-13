@@ -13,7 +13,7 @@ let t; watch(f, () => { clearTimeout(t); t = setTimeout(() => router.get('/admin
 const csvUrl = computed(() => `/admin/audit/export?${new URLSearchParams(Object.fromEntries(Object.entries(f).filter(([, v]) => v)))}`);
 const isSuper = usePage().props.auth.user.role === 'super_admin';
 // tautan ke halaman objek yang diaudit (bila ada halamannya; objek yang dihapus tidak ditautkan)
-const linkFor = (l) => { const id = l.subject_id; if (!id || l.action === 'deleted' || l.exists === false) return null;
+const linkFor = (l) => { const id = l.subject_id; if (!id || l.action === 'deleted' || l.live === false) return null;
   return { risk: `/risks/${id}`, action_plan: `/action-plans/${id}`, control: `/controls/${id}`, incident: `/incidents/${id}`, approval: `/approvals?id=${id}`, kri: '/kris', improvement: '/improvements', review: '/reviews', document: `/documents?history=${id}`,
     org_unit: '/organization/units', objective: '/organization/objectives', user: isSuper ? '/admin/users' : null }[l.kind] || null; };
 const show = (v) => (v === null || v === undefined ? '∅' : typeof v === 'object' ? JSON.stringify(v) : String(v));

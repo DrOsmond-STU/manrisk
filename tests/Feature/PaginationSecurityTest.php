@@ -111,7 +111,15 @@ class PaginationSecurityTest extends \Tests\TestCase
             ->where('logs.data', function ($rows) use ($inc, $alive) {
                 $gone = collect($rows)->where('kind', 'incident')->where('subject_id', $inc->id);
                 $live = collect($rows)->where('kind', 'risk')->where('subject_id', $alive->id);
-                return $gone->count() >= 2 && $gone->every(fn ($r) => $r['exists'] === false) && $live->isNotEmpty() && $live->every(fn ($r) => $r['exists'] === true);
+                return $gone->count() >= 2 && $gone->every(fn ($r) => $r['live'] === false) && $live->isNotEmpty() && $live->every(fn ($r) => $r['live'] === true);
             }));
+    }
+
+    public function test_dashboard_recent_activity_does_not_link_deleted_objects(): void
+    {
+        $this->actingAs($this->users['risk_manager']);
+        $inc = \App\Models\Incident::create(['code' => 'INC-Z', 'title' => 'Z', 'occurred_at' => now(), 'status' => 'reported', 'unit_id' => $this->unitA->id]);
+        $inc->delete();
+        $this->as('risk_manager')->get('/dashboard')->assertInertia(fn ($p) => $p->where('recent', fn ($rows) => ($r = collect($rows)->firstWhere('subject_id', $inc->id)) && $r['live'] === false));
     }
 }

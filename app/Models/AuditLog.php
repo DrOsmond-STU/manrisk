@@ -14,6 +14,26 @@ class AuditLog extends Model
 
     protected $casts = ['changes' => 'array', 'created_at' => 'datetime'];
 
+    /**
+     * Kunci "tipe:id" dari subjek log yang objeknya masih ada (belum dihapus), agar tampilan
+     * tidak menautkan objek yang sudah dihapus (tautan 404).
+     */
+    public static function liveSubjects(iterable $logs): array
+    {
+        $alive = [];
+        foreach (collect($logs)->groupBy('subject_type') as $type => $rows) {
+            $class = str_contains((string) $type, '\\') ? $type : \Illuminate\Database\Eloquent\Relations\Relation::getMorphedModel((string) $type);
+            if (!$class || !class_exists($class)) {
+                continue;
+            }
+            $key = (new $class())->getKeyName();
+            foreach ($class::whereKey($rows->pluck('subject_id')->filter()->unique()->all())->pluck($key) as $id) {
+                $alive["{$type}:{$id}"] = true;
+            }
+        }
+        return $alive;
+    }
+
     public static function record(string $action, Model $subject, array $changes = [], ?string $context = null): self
     {
         $user = auth()->user();
