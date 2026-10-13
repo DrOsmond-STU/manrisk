@@ -7,6 +7,7 @@ import { usePager } from '../../lib/pager';
 import Heatmap from '../../Components/Heatmap.vue';
 import Pill from '../../Components/Pill.vue';
 import ScopeFilter from '../../Components/ScopeFilter.vue';
+import { lvKey } from '../../lib/format';
 const props = defineProps({ risks: Array, matrix: Object, criteria: Object, filters: { type: Object, default: () => ({}) }, units: Array, categories: Array });
 // Filter cakupan ikut dibawa saat membuka Risk Register
 const scope = computed(() => Object.entries(props.filters || {}).filter(([, v]) => v).map(([k, v]) => `&${k}=${v}`).join(''));

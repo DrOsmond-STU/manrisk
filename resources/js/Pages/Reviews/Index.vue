@@ -2,6 +2,8 @@
 import { computed, ref } from 'vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import PageHead from '../../Components/PageHead.vue';
+import LocalPager from '../../Components/LocalPager.vue';
+import { usePager } from '../../lib/pager';
 import Pill from '../../Components/Pill.vue';
 import Modal from '../../Components/Modal.vue';
 import Field from '../../Components/Field.vue';
@@ -9,6 +11,7 @@ import Pagination from '../../Components/Pagination.vue';
 import ConfirmButton from '../../Components/ConfirmButton.vue';
 import { fmt } from '../../lib/format';
 const props = defineProps({ reviews: Object, filters: Object, periods: Array, period_now: String, due: Array, risks: Array, can: Object, focus_risk: { type: Object, default: null } });
+const duePager = usePager(() => props.due, 10);
 const go = (patch) => router.get('/reviews', Object.fromEntries(Object.entries({ period: props.filters.period, risk_id: props.filters.risk_id, ...patch }).filter(([, v]) => v)), { preserveState: true });
 const target = ref(null);
 const form = useForm({ risk_id: '', period_type: 'quarterly', period: props.period_now, note: '', decision: 'continue' });
@@ -25,8 +28,8 @@ import { usePage } from '@inertiajs/vue3';
   </PageHead>
   <div class="s-grid">
     <div class="card" style="grid-column:span 5"><div class="card-h"><h3>Perlu direview ({{ period_now }})</h3></div><div class="card-b flush tbl-wrap" style="max-height:520px;overflow:auto"><table class="tbl"><thead><tr><th>Risiko</th><th class="num">Skor</th><th></th></tr></thead><tbody>
-      <tr v-for="r in due" :key="r.id"><td class="wrap"><Link :href="`/risks/${r.id}`" class="code-link">{{ r.code }}</Link> {{ r.name }}<div class="t-sub"><Link :href="`/risks?unit_id=${r.unit_id}&status=active`">{{ r.unit?.name }}</Link></div></td><td class="num"><Pill kind="level" :value="r.residual_level" /> {{ r.residual_score }}</td><td><button v-if="can.write" type="button" class="btn sm c-teal" @click="open(r)">Review</button></td></tr>
-      <tr v-if="!due.length"><td colspan="3"><div class="empty">Semua risiko sudah direview periode ini.</div></td></tr></tbody></table></div></div>
+      <tr v-for="r in duePager.items" :key="r.id"><td class="wrap"><Link :href="`/risks/${r.id}`" class="code-link">{{ r.code }}</Link> {{ r.name }}<div class="t-sub"><Link :href="`/risks?unit_id=${r.unit_id}&status=active`">{{ r.unit?.name }}</Link></div></td><td class="num"><Pill kind="level" :value="r.residual_level" /> {{ r.residual_score }}</td><td><button v-if="can.write" type="button" class="btn sm c-teal" @click="open(r)">Review</button></td></tr>
+      <tr v-if="!due.length"><td colspan="3"><div class="empty">Semua risiko sudah direview periode ini.</div></td></tr></tbody></table></div><LocalPager :p="duePager" /></div>
     <div class="card" style="grid-column:span 7"><div class="card-h"><h3>Riwayat review</h3><span v-if="focus_risk" class="pill run">Risiko <Link :href="`/risks/${focus_risk.id}`">{{ focus_risk.code }}</Link> <button type="button" class="btn sm ghost c-indigo" aria-label="Hapus filter risiko" @click="go({ risk_id: null })">×</button></span><select class="sel sel-inline" :value="filters.period || ''" @change="go({ period: $event.target.value })"><option value="">Semua periode</option><option v-for="p in periods" :key="p" :value="p">{{ p }}</option></select><a v-if="filters.period" :href="`/reviews/minutes?period=${encodeURIComponent(filters.period)}`" class="btn sm c-red"><Icon name="file" />Berita acara PDF</a></div><div class="card-b flush tbl-wrap"><table class="tbl"><thead><tr><th>Periode</th><th>Risiko</th><th class="num">Skor</th><th>Tren</th><th>Keputusan</th><th>Reviewer</th><th></th></tr></thead><tbody>
       <tr v-for="v in reviews.data" :key="v.id"><td class="mono">{{ v.period }}</td><td class="wrap"><Link :href="`/risks/${v.risk_id}`" class="code-link">{{ v.risk?.code }}</Link> {{ v.risk?.name }} <Link :href="`/reviews?risk_id=${v.risk_id}`" class="hint">riwayat</Link><div class="t-sub">{{ v.note }}</div></td><td class="num mono">{{ v.previous_score ?? '—' }} → {{ v.current_score }}</td><td><Pill :value="v.trend" :tone="v.trend === 'up' ? 'bad' : v.trend === 'down' ? 'ok' : ''" /></td><td><Pill :value="v.decision" /></td><td class="t-sub">{{ v.reviewer?.name }}<br>{{ fmt.date(v.signed_at) }}</td><td><ConfirmButton v-if="isAdmin" :href="`/reviews/${v.id}`" /></td></tr>
       <tr v-if="!reviews.data.length"><td colspan="7"><div class="empty">Belum ada review.</div></td></tr></tbody></table></div><Pagination :data="reviews" /></div>
