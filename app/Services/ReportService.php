@@ -15,11 +15,12 @@ use App\Models\User;
 class ReportService
 {
     public const TYPES = ['register' => 'Risk Register', 'profile' => 'Risk Profile', 'heatmap' => 'Risk Heatmap', 'top' => 'Top Risks', 'action_plans' => 'Risk Treatment (Action Plan)', 'residual' => 'Residual Risk',
-        'kri' => 'KRI Report', 'incidents' => 'Risk Incident Report', 'trend' => 'Risk Trend', 'controls' => 'Control Effectiveness', 'overdue' => 'Mitigation Progress / Overdue Action', 'executive' => 'Executive Risk Report'];
+        'kri' => 'KRI Report', 'incidents' => 'Risk Incident Report', 'trend' => 'Risk Trend', 'controls' => 'Control Effectiveness', 'overdue' => 'Mitigation Progress / Overdue Action', 'executive' => 'Executive Risk Report',
+        'quarterly' => 'Laporan Manajemen Risiko Triwulanan (BUMN)'];
 
     /** Format yang tersedia per jenis laporan (spesifikasi §13). */
     public const FORMATS = ['register' => ['xlsx', 'pdf'], 'profile' => ['pdf'], 'heatmap' => ['pdf'], 'top' => ['pdf', 'xlsx'], 'action_plans' => ['xlsx', 'pdf'], 'residual' => ['xlsx', 'pdf'],
-        'kri' => ['pdf', 'xlsx'], 'incidents' => ['pdf', 'xlsx'], 'trend' => ['pdf', 'xlsx'], 'controls' => ['xlsx', 'pdf'], 'overdue' => ['xlsx', 'pdf'], 'executive' => ['pdf']];
+        'kri' => ['pdf', 'xlsx'], 'incidents' => ['pdf', 'xlsx'], 'trend' => ['pdf', 'xlsx'], 'controls' => ['xlsx', 'pdf'], 'overdue' => ['xlsx', 'pdf'], 'executive' => ['pdf'], 'quarterly' => ['pdf', 'xlsx']];
 
     /** Filter risiko yang sama dengan Risk Register (RiskController::filtered) untuk laporan. */
     public const RISK_FILTERS = ['q', 'unit_id', 'category_id', 'owner_id', 'objective_id', 'process_id', 'level', 'evaluation', 'status'];
@@ -110,8 +111,70 @@ class ReportService
                 'kris' => $kris()->where('active', true)->get()->countBy('status'),
                 'incidents_ytd' => $incidents()->whereYear('occurred_at', now()->year)->count(), 'loss_ytd' => (float) $incidents()->whereYear('occurred_at', now()->year)->sum('loss_amount'),
             ],
+            'quarterly' => $this->quarterly($user, $params, $risks, $incidents, $kris) + $base,
             default => $base,
         };
+    }
+
+    /**
+     * Laporan pemantauan manajemen risiko triwulanan untuk BUMN (PER-2/MBU/03/2023 dan juknis pelaporannya):
+     * strategi & selera risiko, profil risiko, peta risiko inheren/residual, realisasi vs target triwulan,
+     * realisasi perlakuan risiko dan biayanya, ikhtisar perubahan profil, KRI, dan loss event database.
+     */
+    private function quarterly(User $user, array $params, $risks, \Closure $incidents, \Closure $kris): array
+    {
+        $year = (int) ($params['year'] ?? now()->year);
+        $quarter = (int) ($params['quarter'] ?? now()->quarter);
+        $start = \Carbon\Carbon::create($year, 3 * $quarter - 2, 1)->startOfDay();
+        $end = $start->copy()->endOfQuarter();
+        $periodEnd = $end->format('Y-m');
+        $prevEnd = $start->copy()->subDay()->format('Y-m');
+        $settings = $user->organization?->settings ?? [];
+        $scoring = app(\App\Support\Scoring::class);
+        $riskIds = $risks->pluck('id');
+        $risks->load(['quarterTargets' => fn ($q) => $q->where('year', $year), 'category:id,name,parent_id,bumn_code', 'actionPlans']);
+        $paths = RiskCategory::tree()->keyBy('id');
+        $snap = \App\Models\RiskSnapshot::whereIn('risk_id', $riskIds)->whereIn('period', [$prevEnd, $periodEnd])->get()->groupBy('period');
+        $now = $snap->get($periodEnd, collect())->keyBy('risk_id');
+        $before = $snap->get($prevEnd, collect())->keyBy('risk_id');
+        $isCurrent = $end->isFuture();
+        $profile = $risks->map(function ($r) use ($quarter, $now, $isCurrent, $paths) {
+            $t = $r->quarterTargets->firstWhere('quarter', $quarter);
+            $real = $isCurrent || !$now->has($r->id) ? ['score' => $r->residual_score, 'exposure' => $r->residual_exposure] : ['score' => $now[$r->id]->residual_score, 'exposure' => $now[$r->id]->residual_exposure];
+            return ['code' => $r->code, 'name' => $r->name, 'taxonomy' => $paths->get($r->category_id)?->path ?? $r->category?->name, 'bumn_code' => $r->category?->bumn_code, 'unit' => $r->unit?->name, 'owner' => $r->owner?->name,
+                'inherent' => $r->inherent_score, 'inherent_exposure' => $r->inherent_exposure, 'level' => $r->residual_level, 'treatment' => $r->treatment,
+                'target' => $t?->target_score, 'target_exposure' => $t?->target_exposure, 'real' => $real['score'], 'real_exposure' => $real['exposure'],
+                'met' => $t ? $real['score'] <= $t->target_score && ($t->target_exposure === null || $real['exposure'] === null || $real['exposure'] <= $t->target_exposure) : null];
+        });
+        // Ikhtisar perubahan profil: level akhir triwulan dibanding akhir triwulan sebelumnya
+        $order = \App\Support\Scoring::LEVEL_ORDER;
+        $changes = $risks->map(function ($r) use ($before, $now, $isCurrent, $order) {
+            $from = $before[$r->id]->level ?? null;
+            $to = $isCurrent || !$now->has($r->id) ? $r->residual_level : $now[$r->id]->level;
+            return ['code' => $r->code, 'name' => $r->name, 'from' => $from, 'to' => $to, 'dir' => $from === null ? 'new' : (($order[$to] ?? 0) <=> ($order[$from] ?? 0))];
+        })->filter(fn ($c) => $c['dir'] !== 0)->values();
+        $plans = ActionPlan::with(['risk:id,code', 'pic:id,name'])->whereIn('risk_id', $riskIds)->whereNull('cancelled_at')
+            ->where(fn ($q) => $q->whereNull('start_date')->orWhere('start_date', '<=', $end))->orderBy('due_date')->get();
+        $losses = $incidents()->whereBetween('occurred_at', [$start, $end])->where('loss_amount', '>', 0)->orderBy('occurred_at')->get();
+        $kriList = $kris()->where('active', true)->orderBy('code')->get();
+        return [
+            'title' => "Laporan Manajemen Risiko Triwulan {$quarter} Tahun {$year}",
+            'year' => $year, 'quarter' => $quarter, 'period_start' => $start, 'period_end' => $end,
+            'settings' => $settings, 'intensity' => config('manrisk.risk_intensity')[$settings['risk_intensity'] ?? ''] ?? null,
+            'level_labels' => \App\Support\Scoring::levels(),
+            'summary' => collect(\App\Support\Scoring::levels())->mapWithKeys(fn ($l, $k) => [$k => $risks->where('residual_level', $k)->count()])->all(),
+            'inherent_summary' => collect(\App\Support\Scoring::levels())->mapWithKeys(fn ($l, $k) => [$k => $risks->filter(fn ($r) => $scoring->level((int) $r->inherent_l, (int) $r->inherent_i) === $k)->count()])->all(),
+            'exposure' => \App\Support\RiskLimits::total($risks, $settings),
+            'limits' => \App\Support\RiskLimits::usage($risks)->filter(fn ($c) => $c['limit'] !== null || $c['exposure'] > 0)->values(),
+            'cells' => $risks->groupBy(fn ($r) => "{$r->residual_l}-{$r->residual_i}"), 'inherent_cells' => $risks->groupBy(fn ($r) => "{$r->inherent_l}-{$r->inherent_i}"),
+            'matrix' => \App\Models\CriteriaVersion::current()?->matrix ?: \App\Support\Scoring::defaultMatrix(\App\Support\Scoring::currentScheme()),
+            'profile' => $profile, 'targets_set' => $profile->whereNotNull('target')->count(), 'targets_met' => $profile->where('met', true)->count(),
+            'changes' => $changes, 'new_risks' => Risk::whereIn('id', $riskIds)->whereBetween('created_at', [$start, $end])->count(),
+            'closed_risks' => $this->riskQuery($user, ['status' => 'closed'] + $params)->whereBetween('closed_at', [$start, $end])->count(),
+            'plans' => $plans->map(fn ($p) => ['code' => $p->code, 'risk' => $p->risk?->code, 'title' => $p->title, 'pic' => $p->pic?->name, 'due' => $p->due_date, 'progress' => $p->progress, 'status' => $p->computedStatus(), 'budget' => $p->budget, 'actual_cost' => $p->actual_cost]),
+            'plan_budget' => (float) $plans->sum('budget'), 'plan_cost' => (float) $plans->sum('actual_cost'),
+            'kris' => $kriList, 'losses' => $losses, 'loss_total' => (float) $losses->sum('loss_amount'),
+        ];
     }
 
     /** Perbandingan antarperiode dari snapshot (bawaan: bulan ini vs 3 bulan lalu). */
@@ -141,11 +204,11 @@ class ReportService
         $view = match ($type) {
             'executive', 'profile' => 'reports.executive',
             'overdue' => 'reports.action_plans',
-            'action_plans', 'controls', 'kri', 'incidents', 'top', 'residual', 'trend', 'heatmap' => 'reports.' . $type,
+            'action_plans', 'controls', 'kri', 'incidents', 'top', 'residual', 'trend', 'heatmap', 'quarterly' => 'reports.' . $type,
             default => 'reports.register',
         };
         $report['ai_label'] = $type === 'executive';
-        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView($view, $report)->setPaper('a4', in_array($type, ['register', 'residual', 'top'], true) ? 'landscape' : 'portrait');
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView($view, $report)->setPaper('a4', in_array($type, ['register', 'residual', 'top', 'quarterly'], true) ? 'landscape' : 'portrait');
         return ['content' => $pdf->output(), 'file' => $file, 'mime' => 'application/pdf'];
     }
 }

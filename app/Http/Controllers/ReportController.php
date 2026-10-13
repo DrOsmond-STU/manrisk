@@ -37,6 +37,7 @@ class ReportController extends Controller
             'type' => ['required', Rule::in(array_keys(ReportService::TYPES))],
             'format' => ['required', Rule::in(['pdf', 'xlsx'])],
             'year' => ['nullable', 'integer', 'between:2000,2100'],
+            'quarter' => ['nullable', 'integer', 'between:1,4'],
             'include_closed' => ['nullable', 'boolean'],
             'limit' => ['nullable', 'integer', 'in:10,20'],
             'period_from' => ['nullable', 'date_format:Y-m'], 'period_to' => ['nullable', 'date_format:Y-m'],
@@ -44,7 +45,7 @@ class ReportController extends Controller
         if (!in_array($data['format'], ReportService::FORMATS[$data['type']], true)) {
             return back()->withErrors(['format' => 'Format tidak tersedia untuk laporan ini.']);
         }
-        $params = collect($data)->only([...ReportService::RISK_FILTERS, 'year', 'include_closed', 'limit', 'period_from', 'period_to'])->filter()->all();
+        $params = collect($data)->only([...ReportService::RISK_FILTERS, 'year', 'quarter', 'include_closed', 'limit', 'period_from', 'period_to'])->filter()->all();
         $job = ReportJob::create(['user_id' => $request->user()->id, 'type' => $data['type'], 'format' => $data['format'], 'params' => $params ?: null, 'status' => 'running']);
         try {
             $out = $service->render($data['type'], $data['format'], $request->user(), $params);

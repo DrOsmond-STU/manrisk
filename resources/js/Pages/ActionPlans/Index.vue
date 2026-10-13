@@ -18,7 +18,7 @@ const fields = computed(() => [
   { key: 'risk_id', label: 'Risiko', type: 'select', options: props.risks.map((r) => ({ id: r.id, name: `${r.code} · ${r.name}` })), required: true, span: true },
   { key: 'title', label: 'Judul rencana', required: true, span: true }, { key: 'description', label: 'Uraian', type: 'textarea', span: true, rows: 2 },
   { key: 'pic_id', label: 'PIC', type: 'select', options: props.users }, { key: 'unit_id', label: 'Unit pelaksana', type: 'select', options: props.units },
-  { key: 'priority', label: 'Prioritas', type: 'select', options: L.priorities, empty: '', required: true, default: 'medium' }, { key: 'budget', label: 'Anggaran (Rp)', type: 'number', min: 0 },
+  { key: 'priority', label: 'Prioritas', type: 'select', options: L.priorities, empty: '', required: true, default: 'medium' }, { key: 'budget', label: 'Anggaran (Rp)', type: 'number', min: 0 }, { key: 'actual_cost', label: 'Realisasi biaya (Rp)', type: 'number', min: 0 },
   { key: 'start_date', label: 'Mulai', type: 'date' }, { key: 'due_date', label: 'Tenggat', type: 'date', required: true },
   { key: 'expected_dl', label: 'Perkiraan penurunan kemungkinan', type: 'number', min: 0, max: 4, default: 1 }, { key: 'expected_di', label: 'Perkiraan penurunan dampak', type: 'number', min: 0, max: 4, default: 0 },
 ]);
