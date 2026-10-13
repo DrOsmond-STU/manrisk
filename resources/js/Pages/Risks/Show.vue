@@ -8,8 +8,8 @@ import Field from '../../Components/Field.vue';
 import Heatmap from '../../Components/Heatmap.vue';
 import Chart from '../../Components/Chart.vue';
 import ConfirmButton from '../../Components/ConfirmButton.vue';
-import { fmt } from '../../lib/format';
-const props = defineProps({ risk: Object, projected: Object, statement: String, audit: Array, criteria: Object, can: Object, alerts: { type: Array, default: () => [] } });
+import { fmt, lvKey } from '../../lib/format';
+const props = defineProps({ quarters: Object, risk: Object, projected: Object, statement: String, audit: Array, criteria: Object, can: Object, alerts: { type: Array, default: () => [] } });
 const escalateAt = props.criteria?.thresholds?.escalate ?? 16;
 const reg = (k, v) => `/risks?${k}=${v}&status=active`;
 const openCell = (key, l, i) => router.visit(`/risks?mode=residual&l=${l}&i=${i}`);
@@ -52,10 +52,11 @@ const diff = (v) => { const vs = r.versions; const i = vs.findIndex((x) => x.id 
   <div v-for="a in alerts" :key="a.id" class="alert-box" :class="a.severity === 'critical' ? 'bad' : 'warn'"><Icon name="bell" /><span>{{ a.title }} <span class="hint">— {{ fmt.datetime(a.created_at) }}</span> <Link href="/alerts" class="hint">lihat peringatan</Link></span></div>
   <div class="kpis">
     <div class="kpi"><div class="k-l">Inheren</div><div class="k-v">{{ r.inherent_score }}</div><div class="k-s">L{{ r.inherent_l }} × I{{ r.inherent_i }}</div></div>
-    <div class="kpi lvl" :style="`--c:var(--lv-${{ low: 'l', medium: 'm', high: 'h', very_high: 'vh' }[r.residual_level]})`"><div class="k-l"><i class="sw"></i>Residual</div><div class="k-v">{{ r.residual_score }}</div><div class="k-s">L{{ r.residual_l }} × I{{ r.residual_i }} · {{ L.levels[r.residual_level] }}</div></div>
+    <div class="kpi lvl" :style="`--c:var(--lv-${lvKey(r.residual_level)})`"><div class="k-l"><i class="sw"></i>Residual</div><div class="k-v">{{ r.residual_score }}</div><div class="k-s">L{{ r.residual_l }} × I{{ r.residual_i }} · {{ L.levels[r.residual_level] }}</div></div>
     <div class="kpi"><div class="k-l">Target</div><div class="k-v">{{ r.target_score }}</div><div class="k-s">L{{ r.target_l }} × I{{ r.target_i }}</div></div>
     <div class="kpi"><div class="k-l">Proyeksi setelah action plan</div><div class="k-v">{{ projected.score }}</div><div class="k-s">L{{ projected.l }} × I{{ projected.i }} · {{ L.levels[projected.level] }}</div></div>
     <div class="kpi"><div class="k-l">Evaluasi</div><div class="k-v" style="font-size:18px"><Pill kind="evaluation" :value="r.evaluation" /></div><div class="k-s">appetite {{ r.category?.appetite }} · tolerance {{ r.category?.tolerance }}</div></div>
+    <div v-if="r.residual_exposure !== null || r.inherent_exposure !== null" class="kpi"><div class="k-l">Eksposur (Rp)</div><div class="k-v" style="font-size:18px">{{ fmt.short(r.residual_exposure) }}</div><div class="k-s">inheren {{ fmt.short(r.inherent_exposure) }} · target {{ fmt.short(r.target_exposure) }}</div></div>
     <div class="kpi"><div class="k-l">Tren</div><div class="k-v" style="font-size:18px"><Pill :value="r.trend" :tone="r.trend === 'up' ? 'bad' : r.trend === 'down' ? 'ok' : ''" /></div><div class="k-s">skor sebelumnya {{ r.previous_score ?? '—' }} · versi {{ r.version }}</div></div>
   </div>
   <div class="tabs"><button v-for="t in [['summary', 'Ringkasan'], ['plans', `Action plan`, r.action_plans.length], ['controls', 'Kontrol', r.controls.length], ['kris', 'KRI', r.kris.length], ['incidents', 'Insiden', r.incidents_count], ['improvements', 'Perbaikan', r.improvements.length], ['reviews', 'Review', r.reviews.length], ['docs', 'Dokumen', r.documents.length], ['versions', 'Versi & persetujuan', r.versions.length], ['audit', 'Audit trail']]" :key="t[0]" type="button" :class="{ on: tab === t[0] }" @click="tab = t[0]">{{ t[1] }}<span v-if="t[2] !== undefined" class="c">{{ t[2] }}</span></button></div>
@@ -72,6 +73,9 @@ const diff = (v) => { const vs = r.versions; const i = vs.findIndex((x) => x.id 
       <p class="hint">I = inheren, R = residual, T = target. Klik sel untuk melihat risiko lain pada posisi residual yang sama.</p>
       <Chart :option="trendOpt" height="180px" />
     </div></div>
+    <div class="card" style="grid-column:span 12"><div class="card-h"><h3>Target vs realisasi residual {{ quarters.year }}</h3><span class="sub">per triwulan RKAP</span></div><div class="card-b flush tbl-wrap"><table class="tbl"><thead><tr><th>Triwulan</th><th class="num">Target skor</th><th class="num">Target eksposur</th><th class="num">Realisasi skor</th><th class="num">Realisasi eksposur</th><th>Sumber</th><th>Status</th></tr></thead><tbody>
+      <tr v-for="q in quarters.rows" :key="q.quarter"><td class="t-main">TW{{ q.quarter }}</td><td class="num mono">{{ q.target_score ?? '—' }}<span v-if="q.target_l" class="t-sub"> L{{ q.target_l }}×I{{ q.target_i }}</span></td><td class="num">{{ q.target_exposure !== null ? fmt.money(q.target_exposure) : '—' }}</td><td class="num mono"><b>{{ q.real?.score ?? '—' }}</b></td><td class="num">{{ q.real?.exposure !== null && q.real?.exposure !== undefined ? fmt.money(q.real.exposure) : '—' }}</td><td class="t-sub">{{ q.real ? (q.real.source === 'saat ini' ? 'nilai saat ini' : fmt.period(q.real.source)) : 'belum ada' }}</td><td><span v-if="q.met === true" class="pill ok">Tercapai</span><span v-else-if="q.met === false" class="pill bad">Di atas target</span><span v-else class="t-sub">—</span></td></tr>
+    </tbody></table><p v-if="!quarters.rows.some((q) => q.target_score)" class="hint" style="padding:8px 12px">Target triwulan belum ditetapkan — isi di formulir risiko langkah 2.</p></div></div>
   </div>
 
   <div v-if="tab === 'plans'" class="card"><div class="card-h"><h3>Action plan mitigasi</h3><span class="row" style="gap:6px"><Link :href="`/action-plans?risk_id=${r.id}`" class="btn sm ghost c-indigo">Buka di Action Plan</Link><button v-if="can.plan && r.status !== 'closed'" type="button" class="btn sm c-green" @click="modal = 'plan'"><Icon name="plus" />Tambah action plan</button></span></div>

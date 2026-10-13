@@ -11,7 +11,7 @@ const f = reactive({ q: props.filters.q || '', unit_id: props.filters.unit_id ||
 const active = () => Object.fromEntries(Object.entries(f).filter(([, v]) => v !== '' && v !== null));
 const exportUrl = (fmt) => `/risks/export?${new URLSearchParams({ ...active(), format: fmt })}`;
 // Filter ganda (mis. dari dashboard "Tinggi & sangat tinggi") tetap dapat dipilih di dropdown
-const levelOpts = { ...L.levels, 'high,very_high': 'Tinggi & sangat tinggi' };
+const levelOpts = { ...L.levels, 'high,very_high': `${L.levels.high} & ${L.levels.very_high}` };
 const evalOpts = { ...L.evaluations, 'escalate,critical': 'Perlu eskalasi & kritis', 'treat,escalate,critical': 'Perlu penanganan ke atas' };
 const procName = (id) => props.processes.find((p) => p.id == id)?.name || `#${id}`;
 const scopeQs = () => new URLSearchParams(Object.fromEntries(Object.entries(active()).filter(([k]) => ['unit_id', 'category_id', 'level', 'status', 'evaluation', 'owner_id', 'objective_id', 'process_id', 'q'].includes(k)))).toString();

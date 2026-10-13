@@ -56,5 +56,9 @@ return [
     'incident_statuses' => ['reported' => 'Dilaporkan', 'investigating' => 'Investigasi', 'corrective' => 'Tindakan Korektif', 'closed' => 'Ditutup'],
     'effectiveness' => [1 => 'Tidak Efektif', 2 => 'Sebagian Efektif', 3 => 'Efektif', 4 => 'Sangat Efektif'],
     'priorities' => ['low' => 'Rendah', 'medium' => 'Sedang', 'high' => 'Tinggi', 'critical' => 'Kritis'],
-    'unit_types' => ['organization' => 'Organisasi', 'deputy' => 'Deputi/Eselon I', 'directorate' => 'Direktorat', 'bureau' => 'Biro', 'division' => 'Bagian', 'subdivision' => 'Subbagian', 'unit' => 'Unit'],
+    // Klasifikasi BUMN berdasarkan intensitas risiko (PER-2/MBU/03/2023); menentukan kedalaman penerapan tata kelola risiko
+    'risk_intensity' => ['systemic' => 'Sistemik', 'significant' => 'Signifikan', 'neutral' => 'Netral'],
+    'entity_types' => ['bumn' => 'BUMN', 'holding' => 'BUMN Induk (Holding)', 'subsidiary' => 'Anak Perusahaan BUMN', 'other' => 'Lainnya'],
+    'committees' => ['audit' => 'Komite Audit', 'risk' => 'Komite Pemantau Risiko'],
+    'unit_types' => ['organization' => 'Organisasi', 'holding' => 'BUMN Induk (Holding)', 'subsidiary' => 'Anak Perusahaan', 'deputy' => 'Deputi/Eselon I', 'directorate' => 'Direktorat', 'bureau' => 'Biro', 'division' => 'Bagian', 'subdivision' => 'Subbagian', 'unit' => 'Unit'],
 ];

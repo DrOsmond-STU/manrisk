@@ -50,7 +50,7 @@ Route::middleware(['auth', 'session.policy'])->group(function () {
 
 Route::middleware(['auth', 'session.policy', 'password.fresh', 'throttle:app'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
-    Route::get('/dashboard/executive', [DashboardController::class, 'executive'])->middleware('role:super_admin,risk_admin,risk_manager,management,auditor')->name('dashboard.executive');
+    Route::get('/dashboard/executive', [DashboardController::class, 'executive'])->middleware('role:super_admin,risk_admin,risk_manager,management,board,auditor')->name('dashboard.executive');
 
     // Organisasi
     Route::get('/organization/units', [OrgUnitController::class, 'index'])->name('units.index');
@@ -182,7 +182,7 @@ Route::middleware(['auth', 'session.policy', 'password.fresh', 'throttle:app'])-
     Route::put('/settings/organization', [SettingsController::class, 'updateOrganization'])->name('settings.organization.update');
 
     // Administrasi
-    Route::prefix('admin')->middleware('role:super_admin,risk_admin,risk_manager,auditor')->group(function () {
+    Route::prefix('admin')->middleware('role:super_admin,risk_admin,risk_manager,board,auditor')->group(function () {
         Route::get('/audit', [AuditController::class, 'index'])->name('audit.index');
         Route::get('/audit/export', [AuditController::class, 'export'])->middleware('throttle:10,1')->name('audit.export');
     });

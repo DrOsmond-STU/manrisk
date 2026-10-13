@@ -1,20 +1,23 @@
 <script setup>
 import { ref } from 'vue';
-import { Head, Link, router } from '@inertiajs/vue3';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import Heatmap from '../../Components/Heatmap.vue';
 import PageHead from '../../Components/PageHead.vue';
 import Kpi from '../../Components/Kpi.vue';
 import Chart from '../../Components/Chart.vue';
 import Pill from '../../Components/Pill.vue';
-import { fmt } from '../../lib/format';
-const props = defineProps({ summary: Object, appetite: Array, trend: Array, top: Array, units: Array, metrics: Object, heat: Object, quarters: Array, movement: Object, appetite_statement: Object, ai_summary: String });
+import { fmt, lvKey } from '../../lib/format';
+const LVN = usePage().props.labels.levels;
+const LV_COLOR = { very_high: '#d03b3b', high: '#ec835a', medium: '#fab219', low_medium: '#8cbf26', low: '#0ca30c' };
+const lvDesc = Object.keys(LVN).reverse(); // tertinggi lebih dulu
+const props = defineProps({ summary: Object, appetite: Array, trend: Array, top: Array, units: Array, metrics: Object, heat: Object, quarters: Array, movement: Object, appetite_statement: Object, ai_summary: String, exposure: Object });
 const heatMode = ref('residual');
-const qOpt = { legend: { top: 0 }, tooltip: { trigger: 'axis' }, xAxis: { type: 'category', data: props.quarters.map((q) => q.label) }, yAxis: { type: 'value' }, series: [['very_high', 'Sangat Tinggi', '#d03b3b'], ['high', 'Tinggi', '#ec835a'], ['medium', 'Sedang', '#fab219'], ['low', 'Rendah', '#0ca30c']].map(([k, n, c]) => ({ name: n, type: 'bar', stack: 'lv', data: props.quarters.map((q) => q[k]), itemStyle: { color: c }, barMaxWidth: 40 })) };
+const qOpt = { legend: { top: 0 }, tooltip: { trigger: 'axis' }, xAxis: { type: 'category', data: props.quarters.map((q) => q.label) }, yAxis: { type: 'value' }, series: lvDesc.map((k) => ({ name: LVN[k], type: 'bar', stack: 'lv', data: props.quarters.map((q) => q[k] ?? 0), itemStyle: { color: LV_COLOR[k] }, barMaxWidth: 40 })) };
 const jm = props.metrics.journey;
 const journeyOpt = { xAxis: { type: 'category', data: ['Inheren', 'Setelah kontrol', 'Proyeksi mitigasi', 'Target'] }, yAxis: { type: 'value', min: 0, max: 25 }, series: [{ type: 'bar', data: [{ value: jm.inherent, itemStyle: { color: '#d03b3b' } }, { value: jm.residual, itemStyle: { color: '#ec835a' } }, { value: jm.projected, itemStyle: { color: '#fab219' } }, { value: jm.target, itemStyle: { color: '#0ca30c' } }], barMaxWidth: 46, label: { show: true, position: 'top' } }] };
 const trendOpt = { legend: { top: 0 }, xAxis: { type: 'category', data: props.trend.map((t) => fmt.period(t.period)) }, yAxis: [{ type: 'value', name: 'Jumlah' }, { type: 'value', name: 'Rata-rata', min: 0, max: 25 }], series: [{ name: 'Risiko tinggi+', type: 'bar', data: props.trend.map((t) => t.high), itemStyle: { color: '#ec835a', borderRadius: [4, 4, 0, 0] }, barMaxWidth: 22 }, { name: 'Rata-rata skor', type: 'line', yAxisIndex: 1, smooth: true, data: props.trend.map((t) => t.avg), lineStyle: { width: 3 } }] };
-const pieLevels = ['very_high', 'high', 'medium', 'low']; // urutan irisan pieOpt
-const pieOpt = { tooltip: { trigger: 'item' }, series: [{ type: 'pie', radius: ['45%', '72%'], data: [{ name: 'Sangat Tinggi', value: props.summary.very_high, itemStyle: { color: '#d03b3b' } }, { name: 'Tinggi', value: props.summary.high, itemStyle: { color: '#ec835a' } }, { name: 'Sedang', value: props.summary.medium, itemStyle: { color: '#fab219' } }, { name: 'Rendah', value: props.summary.low, itemStyle: { color: '#0ca30c' } }], label: { fontSize: 11 } }] };
+const pieLevels = lvDesc; // urutan irisan pieOpt
+const pieOpt = { tooltip: { trigger: 'item' }, series: [{ type: 'pie', radius: ['45%', '72%'], data: lvDesc.map((k) => ({ name: LVN[k], value: props.summary[k] ?? 0, itemStyle: { color: LV_COLOR[k] } })), label: { fontSize: 11 } }] };
 </script>
 <template>
   <Head title="Executive Dashboard" />
@@ -26,11 +29,12 @@ const pieOpt = { tooltip: { trigger: 'item' }, series: [{ type: 'pie', radius: [
   <div v-if="appetite_statement?.appetite_statement" class="alert-box ok"><Icon name="flag" /><div><b>Pernyataan risk appetite:</b> {{ appetite_statement.appetite_statement }}</div></div>
   <div class="kpis">
     <Link href="/risks?status=active" class="plain"><Kpi label="Total risiko aktif" :value="summary.total" :sub="`rata-rata residual ${summary.avg} · inheren ${summary.avg_inherent}`" /></Link>
-    <Link v-for="lv in [['very_high', 'Sangat tinggi', 'vh'], ['high', 'Tinggi', 'h'], ['medium', 'Sedang', 'm'], ['low', 'Rendah', 'l']]" :key="lv[0]" :href="`/risks?status=active&level=${lv[0]}`" class="plain"><Kpi :label="lv[1]" :value="summary[lv[0]]" :level="lv[2]" :sub="`inheren ${movement.inherent[lv[0]]}`" /></Link>
+    <Link v-for="k in lvDesc" :key="k" :href="`/risks?status=active&level=${k}`" class="plain"><Kpi :label="LVN[k]" :value="summary[k] ?? 0" :level="lvKey(k)" :sub="`inheren ${movement.inherent[k] ?? 0}`" /></Link>
     <Link :href="`/risks?period=${new Date().getFullYear()}&sort=updated_at&dir=desc`" class="plain"><Kpi label="Risiko baru / ditutup" :value="`${movement.new} / ${movement.closed}`" sub="tahun berjalan" /></Link><Link href="/risks?status=treating" class="plain"><Kpi label="Dalam penanganan" :value="movement.treating" :sub="`${movement.above_target} melewati target`" /></Link><Link href="/risks?status=active&trend=up" class="plain"><Kpi label="Arah risiko" :value="`▲${movement.up} ▼${movement.down}`" :sub="`${movement.flat} stabil`" /></Link>
     <Link href="/action-plans" class="plain"><Kpi label="Realisasi / efektivitas mitigasi" :value="`${metrics.realization}% / ${metrics.effectiveness}%`" /></Link>
     <Link href="/risks?status=active&evaluation=escalate,critical" class="plain"><Kpi label="Perlu eskalasi" :value="summary.escalate" sub="≥ ambang eskalasi" level="vh" /></Link>
     <Link href="/action-plans?status=done" class="plain"><Kpi label="Action plan selesai" :value="`${summary.plan_done}/${summary.plan_total}`" :sub="fmt.pct(summary.plan_total ? summary.plan_done / summary.plan_total * 100 : 0) + ' penyelesaian'" /></Link>
+    <Link href="/risks/evaluation" class="plain"><Kpi label="Eksposur residual vs risk limit" :value="fmt.short(exposure.exposure)" :level="exposure.status === 'breach' ? 'vh' : exposure.status === 'near' ? 'm' : null" :sub="exposure.limit ? `${exposure.pct}% dari limit ${fmt.short(exposure.limit)}` : `${exposure.quantified}/${exposure.total} risiko terkuantifikasi`" /></Link>
     <Link href="/incidents/losses" class="plain"><Kpi label="Kerugian tahun berjalan" :value="fmt.short(summary.loss_ytd)" :sub="`${summary.incidents_ytd} insiden`" /></Link>
   </div>
   <div class="s-grid">

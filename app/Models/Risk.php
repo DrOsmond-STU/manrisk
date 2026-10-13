@@ -22,6 +22,7 @@ class Risk extends Model
         'unit_id',
         'objective_id',
         'process_id',
+        'scope_id',
         'category_id',
         'owner_id',
         'cause',
@@ -46,6 +47,9 @@ class Risk extends Model
         'inherent_score',
         'residual_score',
         'target_score',
+        'inherent_exposure',
+        'residual_exposure',
+        'target_exposure',
         'residual_level',
         'evaluation',
         'trend',
@@ -66,6 +70,9 @@ class Risk extends Model
         'submitted_at' => 'datetime',
         'approved_at' => 'datetime',
         'closed_at' => 'datetime',
+        'inherent_exposure' => 'float',
+        'residual_exposure' => 'float',
+        'target_exposure' => 'float',
     ];
     public function statement(): string
     {
@@ -106,6 +113,16 @@ class Risk extends Model
     public function versions(): HasMany
     {
         return $this->hasMany(RiskVersion::class);
+    }
+
+    public function quarterTargets(): HasMany
+    {
+        return $this->hasMany(RiskQuarterTarget::class)->orderBy('year')->orderBy('quarter');
+    }
+
+    public function scope(): BelongsTo
+    {
+        return $this->belongsTo(Scope::class);
     }
 
     public function snapshots(): HasMany

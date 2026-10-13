@@ -11,7 +11,7 @@ export const fmt = {
     pct: (v) => `${Math.round(Number(v || 0))}%`,
     initials: (n) => (n || '').split(' ').filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join(''),
 };
-export const LV = { low: 'l', medium: 'm', high: 'h', very_high: 'vh' };
+export const LV = { low: 'l', low_medium: 'lm', medium: 'm', high: 'h', very_high: 'vh' };
 export const lvKey = (level) => LV[level] || 'm';
 export const lvFromScore = (s) => (s >= 16 ? 'very_high' : s >= 10 ? 'high' : s >= 5 ? 'medium' : 'low');
 export const EVAL_PILL = { acceptable: 'ok', monitor: 'run', treat: 'warn', escalate: 'bad', critical: 'bad' };

@@ -28,7 +28,7 @@ class DashboardController extends Controller
         }
         $risks = $this->scopeUnits(Risk::query())->when($unitFilter, fn ($q) => $q->whereIn('unit_id', $unitFilter))->where('status', '!=', 'closed')
             ->with(['unit:id,name', 'category:id,name', 'owner:id,name', 'objective:id,code,name', 'process:id,name', 'actionPlans:id,risk_id,code,title,progress,expected_dl,expected_di,cancelled_at,completed_at,due_date'])->get();
-        $byLevel = ['low' => 0, 'medium' => 0, 'high' => 0, 'very_high' => 0];
+        $byLevel = array_fill_keys(array_keys(Scoring::levels()), 0);
         $heat = [];
         $heatInh = [];
         foreach ($risks as $r) {
@@ -97,7 +97,7 @@ class DashboardController extends Controller
         $scoring = app(Scoring::class);
         $active = $risks->flatMap->actionPlans->whereNull('cancelled_at');
         $n = max(1, $risks->count());
-        $effective = $risks->filter(fn ($r) => (Scoring::LEVEL_ORDER[Scoring::levelFromScore($r->inherent_score)] ?? 0) - (Scoring::LEVEL_ORDER[$r->residual_level] ?? 0) >= 1)->count();
+        $effective = $risks->filter(fn ($r) => (Scoring::LEVEL_ORDER[$scoring->level((int) $r->inherent_l, (int) $r->inherent_i)] ?? 0) - (Scoring::LEVEL_ORDER[$r->residual_level] ?? 0) >= 1)->count();
         $proj = $risks->map(fn ($r) => $scoring->projected($r)['score']);
         return [
             'realization' => (int) round((float) $active->avg('progress')),
@@ -134,24 +134,22 @@ class DashboardController extends Controller
             $heat['inherent']["{$r->inherent_l}-{$r->inherent_i}"] = ($heat['inherent']["{$r->inherent_l}-{$r->inherent_i}"] ?? 0) + 1;
         }
         $risks->load('actionPlans:id,risk_id,progress,expected_dl,expected_di,cancelled_at');
-        $byLv = fn ($score) => Scoring::levelFromScore((int) $score);
+        $lvKeys = array_reverse(array_keys(Scoring::levels())); // tertinggi lebih dulu
         return Inertia::render('Dashboard/Executive', [
             'metrics' => $this->metrics($risks),
             'heat' => $heat,
-            'quarters' => $quarters->map(fn ($q) => ['label' => $q['label']] + collect(['very_high', 'high', 'medium', 'low'])->mapWithKeys(fn ($lv) => [$lv => $qs->get($q['period'], collect())->where('level', $lv)->count()])->all()),
+            'quarters' => $quarters->map(fn ($q) => ['label' => $q['label']] + collect($lvKeys)->mapWithKeys(fn ($lv) => [$lv => $qs->get($q['period'], collect())->where('level', $lv)->count()])->all()),
             'movement' => ['new' => Risk::whereYear('created_at', now()->year)->count(), 'closed' => Risk::where('status', 'closed')->whereYear('closed_at', now()->year)->count(), 'treating' => $risks->where('status', 'treating')->count(),
                 'above_target' => $risks->filter(fn ($r) => $r->residual_score > $r->target_score)->count(), 'up' => $risks->where('trend', 'up')->count(), 'down' => $risks->where('trend', 'down')->count(), 'flat' => $risks->where('trend', 'flat')->count(),
-                'inherent' => collect(['very_high', 'high', 'medium', 'low'])->mapWithKeys(fn ($lv) => [$lv => $risks->filter(fn ($r) => $byLv($r->inherent_score) === $lv)->count()])],
+                'inherent' => collect($lvKeys)->mapWithKeys(fn ($lv) => [$lv => $risks->filter(fn ($r) => $scoring->level((int) $r->inherent_l, (int) $r->inherent_i) === $lv)->count()])],
             'appetite_statement' => collect($request->user()->organization?->settings ?? [])->only('appetite_statement', 'appetite_basis', 'appetite_date'),
+            'exposure' => \App\Support\RiskLimits::total($risks, $request->user()->organization?->settings ?? []),
             'ai_summary' => app(\App\Services\AiService::class)->available() ? app(\App\Services\AiService::class)->dashboardSummary(['total' => $risks->count(), 'high' => $risks->whereIn('residual_level', ['high', 'very_high'])->count(), 'escalate' => $risks->whereIn('evaluation', ['escalate', 'critical'])->count(),
                 'realization' => $this->metrics($risks)['realization'], 'overdue' => ActionPlan::whereNull('cancelled_at')->where('progress', '<', 100)->where('due_date', '<', now()->startOfDay())->count(), 'kri_breach' => Kri::whereIn('status', ['warning', 'critical'])->count(),
                 'up' => $risks->where('trend', 'up')->count(), 'down' => $risks->where('trend', 'down')->count()], $risks->sortByDesc('residual_score')->take(5)->map(fn ($r) => $r->only('code', 'name', 'residual_score'))->values()->all(), 'exec:' . $request->user()->organization_id) : null,
             'summary' => [
                 'total' => $risks->count(),
-                'very_high' => $risks->where('residual_level', 'very_high')->count(),
-                'high' => $risks->where('residual_level', 'high')->count(),
-                'medium' => $risks->where('residual_level', 'medium')->count(),
-                'low' => $risks->where('residual_level', 'low')->count(),
+            ] + collect($lvKeys)->mapWithKeys(fn ($lv) => [$lv => $risks->where('residual_level', $lv)->count()])->all() + [
                 'escalate' => $risks->whereIn('evaluation', ['escalate', 'critical'])->count(),
                 'avg' => round((float) $risks->avg('residual_score'), 1),
                 'avg_inherent' => round((float) $risks->avg('inherent_score'), 1),
