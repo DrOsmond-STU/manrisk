@@ -42,7 +42,7 @@ class ActionPlanController extends Controller
             $plans = $plans->where('status', $f['status'])->values();
         }
         return Inertia::render('ActionPlans/Index', [
-            'plans' => $plans,
+            'plans' => $this->paginateCollection($plans, 25),
             'filters' => $f,
             'stats' => $plans->countBy('status'),
             'risks' => $this->riskOptions(),

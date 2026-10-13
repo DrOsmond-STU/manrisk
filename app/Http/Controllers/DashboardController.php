@@ -86,7 +86,12 @@ class DashboardController extends Controller
             'upcoming' => $plans->filter(fn ($p) => $p->progress < 100)->sortBy('due_date')->take(6)->values()->map(fn ($p) => $p->only('id', 'code', 'title', 'due_date', 'progress') + ['status' => $p->computedStatus()]),
             'kris' => $this->scopedKris()->where('active', true)->with('risk:id,code')->orderByRaw("case status when 'critical' then 0 when 'warning' then 1 else 2 end")->limit(6)->get(),
             'recent' => \App\Models\AuditLog::with('user:id,name')->where('organization_id', $user->organization_id)->when($user->isUnitScoped(), fn ($q) => $q->where('user_id', $user->id))
-                ->whereIn('action', ['created', 'updated', 'submitted', 'approval_approve', 'approval_reject', 'approval_revise'])->latest('id')->limit(8)->get(['id', 'user_id', 'action', 'subject_type', 'subject_id', 'subject_label', 'created_at']),
+                ->whereIn('action', ['created', 'updated', 'submitted', 'approval_approve', 'approval_reject', 'approval_revise'])->latest('id')->limit(8)->get(['id', 'user_id', 'action', 'subject_type', 'subject_id', 'subject_label', 'created_at'])
+                ->pipe(function ($logs) {
+                    // objek yang sudah dihapus tidak ditautkan
+                    $alive = \App\Models\AuditLog::liveSubjects($logs);
+                    return $logs->each(fn ($l) => $l->setAttribute('live', isset($alive["{$l->subject_type}:{$l->subject_id}"])));
+                }),
             'ai_summary' => app(\App\Services\AiService::class)->available() ? app(\App\Services\AiService::class)->dashboardSummary($summary, $top->map(fn ($r) => $r->only('code', 'name', 'residual_score'))->all(), $user->organization_id . ':' . md5(json_encode($user->accessibleUnitIds()) . json_encode($unitFilter))) : null,
         ]);
     }

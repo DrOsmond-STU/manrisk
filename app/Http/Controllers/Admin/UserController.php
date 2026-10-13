@@ -34,7 +34,7 @@ class UserController extends Controller
             'filters' => $f,
             'units' => $this->unitOptions(),
             'stats' => ['total' => User::count(), 'active' => User::where('active', true)->count(), 'by_role' => User::selectRaw('role, count(*) n')->groupBy('role')->pluck('n', 'role')],
-            'auth_logs' => AuthLog::with('user:id,name')->where('organization_id', $request->user()->organization_id)->latest('id')->limit(30)->get(),
+            'auth_logs' => AuthLog::with('user:id,name')->where('organization_id', $request->user()->organization_id)->latest('id')->paginate(10, ['*'], 'apage')->withQueryString(),
         ]);
     }
 

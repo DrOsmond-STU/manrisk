@@ -24,7 +24,7 @@ const journeyOpt = { tooltip: { trigger: 'axis' }, xAxis: { type: 'category', da
 const drill = (rows, key, horizontal = true) => (e) => { const r = rows[horizontal ? rows.length - 1 - e.index : e.index]; if (r?.id) router.visit(q({ [key]: r.id })); };
 const unitQ = () => (props.filters.unit_id ? `&unit_id=${props.filters.unit_id}` : '');
 const SUBJ_URL = { risk: (id) => `/risks/${id}`, action_plan: (id) => `/action-plans/${id}`, control: (id) => `/controls/${id}`, incident: (id) => `/incidents/${id}`, approval: (id) => `/approvals?id=${id}` };
-const subjUrl = (a) => SUBJ_URL[a.subject_type]?.(a.subject_id);
+const subjUrl = (a) => (a.live === false ? null : SUBJ_URL[a.subject_type]?.(a.subject_id));
 const actLabel = { created: 'membuat', updated: 'mengubah', submitted: 'mengajukan', approval_approve: 'menyetujui', approval_reject: 'menolak', approval_revise: 'meminta revisi' };
 const subjLabel = { risk: 'risiko', action_plan: 'action plan', control: 'kontrol', incident: 'insiden', kri: 'KRI', document: 'dokumen' };
 </script>

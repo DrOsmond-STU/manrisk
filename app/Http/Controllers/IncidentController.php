@@ -154,7 +154,8 @@ class IncidentController extends Controller
         $losses = LossEvent::with(['category:id,name', 'incident:id,code,risk_id', 'incident.risk:id,code'])->when($ids !== null, fn ($q) => $q->whereHas('incident', fn ($i) => $i->whereIn('unit_id', $ids)))
             ->orderByDesc('year')->orderByDesc('amount')->get();
         return Inertia::render('Incidents/Losses', [
-            'losses' => $losses,
+            'losses' => $this->paginateCollection($losses, 25),
+            'totals' => ['amount' => (float) $losses->sum('amount'), 'n' => $losses->count()],
             'by_year' => $losses->groupBy('year')->map(fn ($g, $y) => ['year' => $y, 'total' => (float) $g->sum('amount'), 'n' => $g->count()])->sortBy('year')->values(),
             'by_category' => $losses->groupBy(fn ($l) => $l->category?->name ?? 'Lainnya')->map(fn ($g, $c) => ['name' => $c, 'total' => (float) $g->sum('amount'), 'n' => $g->count()])->sortByDesc('total')->values(),
             'categories' => RiskCategory::orderBy('sort')->get(['id', 'name']),

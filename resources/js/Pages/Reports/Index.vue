@@ -4,10 +4,11 @@ import { router, useForm, usePage } from '@inertiajs/vue3';
 import ConfirmButton from '../../Components/ConfirmButton.vue';
 import { Head } from '@inertiajs/vue3';
 import PageHead from '../../Components/PageHead.vue';
+import Pagination from '../../Components/Pagination.vue';
 import Field from '../../Components/Field.vue';
 import Pill from '../../Components/Pill.vue';
 import { fmt, toast } from '../../lib/format';
-const props = defineProps({ types: Object, formats: Object, units: Array, categories: Array, owners: Array, initial: Object, jobs: Array, schedules: Array });
+const props = defineProps({ types: Object, formats: Object, units: Array, categories: Array, owners: Array, initial: Object, jobs: Object, schedules: Object });
 const labels = usePage().props.labels;
 const sf = useForm({ type: 'kri', format: 'pdf', frequency: 'monthly', day: 1, recipients: [], unit_id: '' });
 const rcpt = ref('');
@@ -67,8 +68,8 @@ const desc = { top: '10/20 risiko prioritas dengan perlakuan dan action plan.', 
       <button type="button" class="btn block" :class="form.format === 'pdf' ? 'c-red' : 'c-green'" :disabled="busy" @click="generate"><Icon name="file" />{{ busy ? 'Menyusun…' : `Unduh ${form.format.toUpperCase()}` }}</button>
     </div></div>
     <div class="card" style="grid-column:span 7"><div class="card-h"><h3>Riwayat laporan</h3></div><div class="card-b flush tbl-wrap"><table class="tbl"><thead><tr><th>Waktu</th><th>Jenis</th><th>Format</th><th>Oleh</th><th>Status</th><th></th></tr></thead><tbody>
-      <tr v-for="j in jobs" :key="j.id"><td style="white-space:nowrap">{{ fmt.datetime(j.created_at) }}</td><td class="t-main">{{ types[j.type] || j.type }}</td><td class="mono">{{ j.format.toUpperCase() }}</td><td class="t-sub">{{ j.user?.name }}</td><td><Pill :value="j.status === 'done' ? 'done' : j.status === 'failed' ? 'rejected' : 'running'" /><div v-if="j.error" class="hint">{{ j.error }}</div></td><td><button v-if="!j.params?.schedule && formats[j.type]?.includes(j.format)" type="button" class="btn sm ghost c-blue" :disabled="busy" title="Berkas tidak disimpan di server; laporan dibuat ulang dengan parameter yang sama dari data terkini" @click="rerun(j)"><Icon name="refresh" />Buat ulang</button></td></tr>
-      <tr v-if="!jobs.length"><td colspan="6"><div class="empty">Belum ada laporan dibuat.</div></td></tr></tbody></table></div></div>
+      <tr v-for="j in jobs.data" :key="j.id"><td style="white-space:nowrap">{{ fmt.datetime(j.created_at) }}</td><td class="t-main">{{ types[j.type] || j.type }}</td><td class="mono">{{ j.format.toUpperCase() }}</td><td class="t-sub">{{ j.user?.name }}</td><td><Pill :value="j.status === 'done' ? 'done' : j.status === 'failed' ? 'rejected' : 'running'" /><div v-if="j.error" class="hint">{{ j.error }}</div></td><td><button v-if="!j.params?.schedule && formats[j.type]?.includes(j.format)" type="button" class="btn sm ghost c-blue" :disabled="busy" title="Berkas tidak disimpan di server; laporan dibuat ulang dengan parameter yang sama dari data terkini" @click="rerun(j)"><Icon name="refresh" />Buat ulang</button></td></tr>
+      <tr v-if="!jobs.data.length"><td colspan="6"><div class="empty">Belum ada laporan dibuat.</div></td></tr></tbody></table></div><Pagination :data="jobs" /></div>
     <div class="card" style="grid-column:1/-1"><div class="card-h"><h3>Laporan terjadwal</h3><span class="sub">dikirim otomatis lewat email pukul 07.00 sesuai jadwal</span></div><div class="card-b stack">
       <div class="filters">
         <Field v-model="sf.type" type="select" label="Jenis" :options="types" empty="" /><Field v-model="sf.format" type="select" label="Format" :options="Object.fromEntries(formats[sf.type].map((f) => [f, f.toUpperCase()]))" empty="" />
@@ -77,8 +78,8 @@ const desc = { top: '10/20 risiko prioritas dengan perlakuan dan action plan.', 
         <button type="button" class="btn c-green" :disabled="sf.processing" @click="saveSchedule"><Icon name="plus" />Jadwalkan</button>
       </div>
       <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Laporan</th><th>Jadwal</th><th>Penerima</th><th>Terakhir dikirim</th><th>Pembuat</th><th></th></tr></thead><tbody>
-        <tr v-for="s in schedules" :key="s.id"><td class="t-main">{{ types[s.type] }} <span class="mono muted">{{ s.format.toUpperCase() }}</span></td><td>{{ s.frequency === 'weekly' ? `Mingguan, hari ke-${s.day}` : `Bulanan, tanggal ${s.day}` }}</td><td class="t-sub">{{ s.recipients.join(', ') }}</td><td>{{ fmt.datetime(s.last_sent_at) }}<div v-if="s.last_error" class="err-msg">{{ s.last_error }}</div></td><td class="t-sub">{{ s.user?.name }}</td><td><ConfirmButton :href="`/reports/schedules/${s.id}`" message="Hapus jadwal laporan ini?" /></td></tr>
-        <tr v-if="!schedules.length"><td colspan="6"><div class="empty">Belum ada laporan terjadwal.</div></td></tr></tbody></table></div>
+        <tr v-for="s in schedules.data" :key="s.id"><td class="t-main">{{ types[s.type] }} <span class="mono muted">{{ s.format.toUpperCase() }}</span></td><td>{{ s.frequency === 'weekly' ? `Mingguan, hari ke-${s.day}` : `Bulanan, tanggal ${s.day}` }}</td><td class="t-sub">{{ s.recipients.join(', ') }}</td><td>{{ fmt.datetime(s.last_sent_at) }}<div v-if="s.last_error" class="err-msg">{{ s.last_error }}</div></td><td class="t-sub">{{ s.user?.name }}</td><td><ConfirmButton :href="`/reports/schedules/${s.id}`" message="Hapus jadwal laporan ini?" /></td></tr>
+        <tr v-if="!schedules.data.length"><td colspan="6"><div class="empty">Belum ada laporan terjadwal.</div></td></tr></tbody></table></div><Pagination :data="schedules" />
     </div></div>
   </div>
 </template>

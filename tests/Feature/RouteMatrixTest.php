@@ -31,12 +31,14 @@ use Tests\TestCase;
 /**
  * Matriks rute × peran (spesifikasi §16.2 "uji otomatis untuk setiap kombinasi peran × aksi"):
  * 1) Setiap halaman GET dapat dibuka setiap peran tanpa galat server (200/302/403/404 saja).
- * 2) Peran baca-saja (Auditor, Management) ditolak pada semua rute yang mengubah data,
+ * 2) Peran baca-saja (Auditor, Management, Dewan Komisaris/Komite) ditolak pada semua rute yang mengubah data,
  *    kecuali rute akun pribadi dan keputusan persetujuan (Management) yang memang diizinkan.
  */
 class RouteMatrixTest extends TestCase
 {
     private array $params = [];
+
+    private int $kksScope = 0;
 
     protected function setUp(): void
     {
@@ -63,12 +65,18 @@ class RouteMatrixTest extends TestCase
         $alert = Alert::create(['type' => 't', 'severity' => 'info', 'title' => 'A', 'subject_type' => 'risk', 'subject_id' => $risk->id]);
         $sched = ReportSchedule::create(['user_id' => $this->users['risk_manager']->id, 'type' => 'kri', 'format' => 'pdf', 'frequency' => 'monthly', 'day' => 1, 'recipients' => ['a@b.c']]);
         $approval = app(ApprovalService::class)->submit($this->makeRisk(['status' => 'draft', 'residual_l' => 2, 'residual_i' => 2]), 'new_risk', $this->users['risk_officer']);
+        $kks = Scope::create(['name' => 'KKS', 'kind' => 'kks', 'kks_type' => 'investment']);
+        $param = \App\Models\RmiParameter::create(['dimension' => 'culture', 'code' => 'BR-1', 'name' => 'P', 'weight' => 1]);
+        $assessment = new \App\Models\RmiAssessment(['year' => 2026, 'type' => 'internal']);
+        $assessment->forceFill(['status' => 'draft'])->save();
+        \App\Models\RmiScore::create(['assessment_id' => $assessment->id, 'parameter_id' => $param->id]);
         $victim = User::create(['name' => 'Korban', 'email' => 'korban@uji.test', 'password' => 'Secret#Pass123', 'role' => 'risk_officer']);
         auth()->logout();
         $this->params = ['risk' => $risk->id, 'unit' => $this->unitB->id, 'objective' => $obj->id, 'program' => $prog->id, 'process' => $proc->id, 'scope' => $scope->id, 'factor' => $factor->id,
             'consultation' => $cons->id, 'criteria' => CriteriaVersion::withoutGlobalScopes()->first()->id, 'category' => RiskCategory::withoutGlobalScopes()->first()->id, 'approval' => $approval->id,
             'control' => $control->id, 'plan' => $plan->id, 'kri' => $kri->id, 'incident' => $inc->id, 'loss' => $loss->id, 'review' => $review->id, 'document' => $doc->id,
-            'improvement' => $imp->id, 'lesson' => $lesson->id, 'item' => FrameworkItem::withoutGlobalScopes()->first()->id, 'alert' => $alert->id, 'user' => $victim->id, 'schedule' => $sched->id, 'type' => 'risk'];
+            'improvement' => $imp->id, 'lesson' => $lesson->id, 'item' => FrameworkItem::withoutGlobalScopes()->first()->id, 'alert' => $alert->id, 'user' => $victim->id, 'schedule' => $sched->id, 'type' => 'risk', 'assessment' => $assessment->id, 'parameter' => $param->id];
+        $this->kksScope = $kks->id;
     }
 
     private function routes(array $methods): array
@@ -110,6 +118,7 @@ class RouteMatrixTest extends TestCase
         $allowed = [
             'auditor' => ['logout', 'logout.others', 'password.update', 'profile.update', 'mfa.send', 'mfa.enable', 'mfa.disable', 'mfa.recovery', 'mfa.devices', 'alerts.read', 'alerts.read-all', 'reports.generate'],
             'management' => ['logout', 'logout.others', 'password.update', 'profile.update', 'mfa.send', 'mfa.enable', 'mfa.disable', 'mfa.recovery', 'mfa.devices', 'alerts.read', 'alerts.read-all', 'reports.generate', 'reports.schedules.store', 'approvals.decide', 'ai.run'],
+            'board' => ['logout', 'logout.others', 'password.update', 'profile.update', 'mfa.send', 'mfa.enable', 'mfa.disable', 'mfa.recovery', 'mfa.devices', 'alerts.read', 'alerts.read-all', 'reports.generate', 'reports.schedules.store', 'approvals.decide', 'ai.run'],
         ];
         $failures = [];
         foreach ($allowed as $role => $ok) {
@@ -153,7 +162,7 @@ class RouteMatrixTest extends TestCase
     {
         $prefixes = ['users.', 'units.store', 'units.update', 'units.destroy', 'criteria.store', 'criteria.activate', 'categories.', 'settings.organization.update', 'framework.update',
             'objectives.store', 'objectives.update', 'objectives.destroy', 'programs.', 'processes.', 'scopes.', 'factors.', 'consultations.', 'reviews.snapshot', 'reviews.destroy', 'losses.destroy',
-            'risks.destroy', 'controls.destroy', 'action-plans.destroy', 'kris.destroy', 'incidents.destroy', 'improvements.destroy', 'lessons.destroy'];
+            'risks.destroy', 'controls.destroy', 'action-plans.destroy', 'kris.destroy', 'incidents.destroy', 'improvements.destroy', 'lessons.destroy', 'rmi.store', 'rmi.scores', 'rmi.finalize', 'rmi.destroy', 'rmi.parameters.'];
         $failures = [];
         foreach (['risk_officer', 'risk_owner'] as $role) {
             foreach ($this->routes(['GET', 'POST', 'PUT', 'DELETE']) as [$m, $uri, $name]) {

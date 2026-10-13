@@ -16,7 +16,8 @@ class RmiAssessment extends Model
 {
     use BelongsToOrganization, Auditable;
 
-    protected $fillable = ['year', 'type', 'assessor', 'assessed_at', 'status', 'score', 'phase', 'note', 'created_by', 'finalized_at'];
+    // status/skor/fase/pembuat/finalisasi hanya diisi server lewat forceFill
+    protected $fillable = ['year', 'type', 'assessor', 'assessed_at', 'note'];
 
     protected $casts = ['assessed_at' => 'date', 'finalized_at' => 'datetime', 'score' => 'float'];
 

@@ -30,10 +30,10 @@ class ControlController extends Controller
         if (($f['eff'] ?? null) === 'weak') {
             $q->where('active', true)->where(fn ($w) => $w->where('operating_eff', '<=', 2)->orWhere('design_eff', '<=', 2)); // selaras KPI "Lemah" (kontrol aktif)
         }
-        $controls = $q->orderBy('code')->get();
+        $controls = $q->orderBy('code')->paginate(25)->withQueryString();
         $all = $this->scoped()->where('active', true)->get(['id', 'design_eff', 'operating_eff', 'type', 'next_test_at']);
         return Inertia::render('Controls/Index', [
-            'controls' => $controls->map(fn ($c) => $c->toArray() + ['overall' => $c->overallEffectiveness()]),
+            'controls' => $controls->through(fn ($c) => $c->toArray() + ['overall' => $c->overallEffectiveness()]),
             'filters' => $f,
             'filter_risk' => !empty($f['risk_id']) ? \App\Models\Risk::find($f['risk_id'])?->only('id', 'code', 'name') : null,
             'stats' => [

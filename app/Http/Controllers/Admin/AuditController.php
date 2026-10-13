@@ -17,15 +17,18 @@ class AuditController extends Controller
         $this->authorize('viewAny', AuditLog::class);
         [$q, $f] = $this->filtered($request);
         $org = $request->user()->organization_id;
+        $page = $q->with('user:id,name,role')->latest('id')->paginate(50)->withQueryString();
+        // objek yang sudah dihapus tidak ditautkan (hindari tautan 404 dari baris audit lama)
+        $alive = AuditLog::liveSubjects($page->getCollection());
         return Inertia::render('Admin/Audit', [
-            'logs' => $q->with('user:id,name,role')->latest('id')->paginate(50)->withQueryString()->through(fn ($l) => ['id' => $l->id, 'action' => $l->action, 'subject' => class_basename($l->subject_type),
+            'logs' => $page->through(fn ($l) => ['live' => isset($alive["{$l->subject_type}:{$l->subject_id}"]), 'id' => $l->id, 'action' => $l->action, 'subject' => class_basename($l->subject_type),
                 // alias morph (risk, action_plan, …) untuk menautkan baris ke halaman objeknya
                 'kind' => str_contains((string) $l->subject_type, '\\') ? Relation::getMorphAlias($l->subject_type) : $l->subject_type, 'subject_id' => $l->subject_id, 'label' => $l->subject_label, 'changes' => $l->changes, 'context' => $l->context, 'ip' => $l->ip, 'created_at' => $l->created_at, 'user' => $l->user?->name]),
             'filters' => $f,
             'actions' => AuditLog::where('organization_id', $org)->select('action')->distinct()->orderBy('action')->pluck('action'),
             'subjects' => AuditLog::where('organization_id', $org)->select('subject_type')->distinct()->pluck('subject_type')->map(fn ($s) => class_basename($s))->unique()->sort()->values(),
             'users' => $this->userOptions(),
-            'auth_logs' => $request->user()->hasRole('super_admin', 'risk_admin', 'auditor') ? AuthLog::with('user:id,name')->where('organization_id', $org)->latest('id')->limit(200)->get() : [],
+            'auth_logs' => $request->user()->hasRole('super_admin', 'risk_admin', 'auditor') ? AuthLog::with('user:id,name')->where('organization_id', $org)->latest('id')->paginate(25, ['*'], 'apage')->withQueryString() : null,
         ]);
     }
 

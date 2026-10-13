@@ -1,10 +1,13 @@
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { Head, Link, usePage } from '@inertiajs/vue3';
 import PageHead from '../../Components/PageHead.vue';
+import LocalPager from '../../Components/LocalPager.vue';
+import { usePager } from '../../lib/pager';
 import Heatmap from '../../Components/Heatmap.vue';
 import Pill from '../../Components/Pill.vue';
 import ScopeFilter from '../../Components/ScopeFilter.vue';
+import { lvKey } from '../../lib/format';
 const props = defineProps({ risks: Array, matrix: Object, criteria: Object, filters: { type: Object, default: () => ({}) }, units: Array, categories: Array });
 // Filter cakupan ikut dibawa saat membuka Risk Register
 const scope = computed(() => Object.entries(props.filters || {}).filter(([, v]) => v).map(([k, v]) => `&${k}=${v}`).join(''));
@@ -13,6 +16,8 @@ const mode = ref('residual');
 const sel = ref(null);
 const counts = computed(() => { const c = {}; for (const r of props.risks) { const k = `${r[mode.value + '_l']}-${r[mode.value + '_i']}`; c[k] = (c[k] || 0) + 1; } return c; });
 const list = computed(() => (sel.value ? props.risks.filter((r) => `${r[mode.value + '_l']}-${r[mode.value + '_i']}` === sel.value) : props.risks).slice().sort((a, b) => b[mode.value + '_score'] - a[mode.value + '_score']));
+const pager = usePager(list, 15);
+watch([sel, mode], () => pager.go(1));
 const byLevel = computed(() => { const o = Object.fromEntries(Object.keys(L.levels).map((k) => [k, 0])); for (const r of props.risks) { const k = `${r[mode.value + '_l']}-${r[mode.value + '_i']}`; const lv = props.matrix[k] || 'medium'; o[lv]++; } return o; });
 </script>
 <template>
@@ -25,7 +30,7 @@ const byLevel = computed(() => { const o = Object.fromEntries(Object.keys(L.leve
     <div class="card" style="grid-column:span 6"><div class="card-h"><h3>Matriks {{ mode }}</h3><span class="sub">{{ risks.length }} risiko aktif</span></div><div class="card-b"><Heatmap :counts="counts" :matrix="matrix" :selected="sel" :likelihood="criteria?.likelihood" :impact="criteria?.impact" @select="(k) => (sel = sel === k ? null : k)" />
       <div class="row" style="margin-top:12px;gap:14px"><component :is="mode === 'residual' ? Link : 'span'" v-for="(n, k) in byLevel" :key="k" :href="mode === 'residual' ? `/risks?level=${k}&status=active${scope}` : undefined" class="lv" :class="'lv-' + lvKey(k)"><i></i>{{ L.levels[k] }} <b>{{ n }}</b></component></div></div></div>
     <div class="card" style="grid-column:span 6"><div class="card-h"><h3>{{ sel ? `Sel ${sel.replace('-', ' × ')}` : 'Seluruh risiko' }}</h3><span v-if="sel" class="row"><Link :href="`/risks?mode=${mode}&l=${sel.split('-')[0]}&i=${sel.split('-')[1]}${scope}`" class="btn sm c-blue">Buka di register</Link><button type="button" class="btn sm ghost c-indigo" @click="sel = null">Tampilkan semua</button></span></div><div class="card-b flush tbl-wrap" style="max-height:620px;overflow:auto"><table class="tbl"><thead><tr><th>Kode</th><th>Risiko</th><th>Unit</th><th class="num">Skor</th><th>Level</th><th>Evaluasi</th></tr></thead><tbody>
-      <tr v-for="r in list" :key="r.id"><td><Link :href="`/risks/${r.id}`" class="code-link">{{ r.code }}</Link></td><td class="t-main wrap">{{ r.name }}</td><td class="t-sub"><Link :href="`/risks?unit_id=${r.unit_id}&status=active`">{{ r.unit?.name }}</Link></td><td class="num mono">{{ r[mode + '_score'] }}</td><td><Pill kind="level" :value="matrix[`${r[mode + '_l']}-${r[mode + '_i']}`] || 'medium'" /></td><td><Pill kind="evaluation" :value="r.evaluation" /></td></tr>
-      <tr v-if="!list.length"><td colspan="6"><div class="empty">Tidak ada risiko pada sel ini.</div></td></tr></tbody></table></div></div>
+      <tr v-for="r in pager.items" :key="r.id"><td><Link :href="`/risks/${r.id}`" class="code-link">{{ r.code }}</Link></td><td class="t-main wrap">{{ r.name }}</td><td class="t-sub"><Link :href="`/risks?unit_id=${r.unit_id}&status=active`">{{ r.unit?.name }}</Link></td><td class="num mono">{{ r[mode + '_score'] }}</td><td><Pill kind="level" :value="matrix[`${r[mode + '_l']}-${r[mode + '_i']}`] || 'medium'" /></td><td><Pill kind="evaluation" :value="r.evaluation" /></td></tr>
+      <tr v-if="!list.length"><td colspan="6"><div class="empty">Tidak ada risiko pada sel ini.</div></td></tr></tbody></table></div><LocalPager :p="pager" /></div>
   </div>
 </template>
