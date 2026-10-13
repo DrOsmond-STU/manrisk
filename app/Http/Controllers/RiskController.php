@@ -35,6 +35,7 @@ class RiskController extends Controller
             'owners' => $this->userOptions(),
             'objectives' => Objective::orderBy('sort')->get(['id', 'code', 'name']),
             'processes' => Process::orderBy('name')->get(['id', 'name']),
+            'scopes' => \App\Models\Scope::orderBy('name')->get(['id', 'name', 'kind']),
             'can' => ['create' => $request->user()->can('create', Risk::class), 'import' => $request->user()->hasRole('super_admin', 'risk_admin', 'risk_manager', 'risk_officer')],
         ]);
     }
@@ -48,7 +49,7 @@ class RiskController extends Controller
             'level' => ['nullable', 'string', 'max:60', $this->listOf(array_keys(Scoring::LEVEL_ORDER))], 'status' => ['nullable', Rule::in([...array_keys(config('manrisk.risk_statuses')), 'active'])],
             'evaluation' => ['nullable', 'string', 'max:80', $this->listOf(array_keys(Scoring::EVALUATIONS))], 'owner_id' => ['nullable', 'integer'],
             'ids' => ['nullable', 'string', 'max:4000', 'regex:/^\d+(,\d+)*$/'],
-            'objective_id' => ['nullable', 'integer'], 'process_id' => ['nullable', 'integer'], 'trend' => ['nullable', Rule::in(['up', 'flat', 'down'])],
+            'objective_id' => ['nullable', 'integer'], 'process_id' => ['nullable', 'integer'], 'scope_id' => ['nullable', 'integer'], 'trend' => ['nullable', Rule::in(['up', 'flat', 'down'])],
             'mode' => ['nullable', Rule::in(['inherent', 'residual', 'target'])], 'l' => ['nullable', 'integer', 'between:1,5'], 'i' => ['nullable', 'integer', 'between:1,5'],
             'no_controls' => ['nullable', 'boolean'], 'period' => ['nullable', 'date_format:Y'],
             'sort' => ['nullable', Rule::in(['code', 'name', 'residual_score', 'inherent_score', 'updated_at', 'due_date'])], 'dir' => ['nullable', Rule::in(['asc', 'desc'])],
@@ -67,7 +68,7 @@ class RiskController extends Controller
         if (!empty($f['ids'])) {
             $q->whereIn('id', array_slice(array_map('intval', explode(',', $f['ids'])), 0, 500));
         }
-        foreach (['owner_id', 'objective_id', 'process_id', 'trend'] as $k) {
+        foreach (['owner_id', 'objective_id', 'process_id', 'scope_id', 'trend'] as $k) {
             if (!empty($f[$k])) {
                 $q->where($k, $f[$k]);
             }
@@ -143,7 +144,7 @@ class RiskController extends Controller
         $this->authorize('create', Risk::class);
         // Prefill dari menu lain: sasaran/unit/proses (Pemetaan Sasaran, Struktur Organisasi) atau saran AI
         $q = $request->validate(['name' => ['nullable', 'string', 'max:255'], 'cause' => ['nullable', 'string', 'max:2000'], 'event' => ['nullable', 'string', 'max:2000'], 'impact' => ['nullable', 'string', 'max:2000'],
-            'category_id' => ['nullable', 'integer'], 'unit_id' => ['nullable', 'integer'], 'objective_id' => ['nullable', 'integer'], 'process_id' => ['nullable', 'integer']]);
+            'category_id' => ['nullable', 'integer'], 'unit_id' => ['nullable', 'integer'], 'objective_id' => ['nullable', 'integer'], 'process_id' => ['nullable', 'integer'], 'scope_id' => ['nullable', 'integer']]);
         $prefill = array_filter($q, fn ($v) => $v !== null && $v !== '');
         if (!empty($prefill['process_id']) && ($proc = Process::find($prefill['process_id']))) {
             $prefill += ['unit_id' => $proc->unit_id];
@@ -238,7 +239,7 @@ class RiskController extends Controller
     public function show(Risk $risk)
     {
         $this->authorize('view', $risk);
-        $risk->load(['unit:id,name', 'category:id,name,appetite,tolerance', 'owner:id,name,role', 'objective:id,code,name', 'process:id,name', 'creator:id,name',
+        $risk->load(['unit:id,name', 'category:id,name,appetite,tolerance', 'owner:id,name,role', 'objective:id,code,name', 'process:id,name', 'scope:id,name,kind', 'creator:id,name',
             'controls' => fn ($q) => $q->with('owner:id,name'), 'actionPlans' => fn ($q) => $q->with('pic:id,name')->orderBy('due_date'),
             'kris', 'incidents' => fn ($q) => $q->latest('occurred_at')->limit(10), 'improvements' => fn ($q) => $q->with('pic:id,name')->latest(), 'reviews' => fn ($q) => $q->with('reviewer:id,name')->latest(),
             'versions' => fn ($q) => $q->with(['creator:id,name', 'approver:id,name'])->orderByDesc('version'), 'documents' => fn ($q) => $q->with('uploader:id,name')->latest(),
@@ -372,6 +373,7 @@ class RiskController extends Controller
             'owners' => $this->userOptions(['risk_owner', 'risk_manager', 'risk_officer', 'risk_admin', 'super_admin', 'management']),
             'objectives' => Objective::where('active', true)->orderBy('sort')->get(['id', 'code', 'name']),
             'processes' => Process::orderBy('name')->get(['id', 'name', 'unit_id']),
+            'scopes' => \App\Models\Scope::orderByRaw("kind = 'kks' desc")->orderBy('name')->get(['id', 'name', 'kind'])->map(fn ($s) => ['id' => $s->id, 'name' => ($s->kind === 'kks' ? 'KKS · ' : '') . $s->name]),
             'controls' => Control::where('active', true)->orderBy('code')->get(['id', 'code', 'name']),
             'criteria' => CriteriaVersion::current()?->only('likelihood', 'impact', 'dimensions', 'matrix', 'thresholds') ?? ['matrix' => Scoring::defaultMatrix(), 'dimensions' => [], 'likelihood' => [], 'impact' => []],
         ];

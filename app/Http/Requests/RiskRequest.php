@@ -24,6 +24,7 @@ class RiskRequest extends FormRequest
             'unit_id' => ['required', $exists('org_units')],
             'objective_id' => ['nullable', $exists('objectives')],
             'process_id' => ['nullable', $exists('processes')],
+            'scope_id' => ['nullable', $exists('scopes')],
             'category_id' => ['required', $exists('risk_categories')],
             'owner_id' => ['required', Rule::exists('users', 'id')->where('organization_id', $org)->where('active', true)],
             'cause' => ['required', 'string', 'max:2000'],

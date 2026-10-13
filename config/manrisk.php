@@ -59,6 +59,19 @@ return [
     // Risk Maturity Index (PER-2/MBU/03/2023; petunjuk teknis SK-8/DKU.MBU/12/2023). Lima dimensi penilaian dan lima fase.
     // Batas fase di bawah adalah nilai awal: fase awal 1,0–1,8 dan fase berkembang mulai 1,9 sesuai juknis; batas fase
     // berikutnya WAJIB dicocokkan dengan lampiran juknis yang berlaku sebelum dipakai untuk pelaporan resmi.
+    // Kegiatan Korporasi Signifikan (PER-2/MBU/03/2023): wajib disertai kajian risiko sebelum diputuskan
+    'kks_types' => [
+        'investment' => 'Investasi / penyertaan modal',
+        'acquisition' => 'Penggabungan, peleburan, pengambilalihan, pemisahan',
+        'subsidiary' => 'Pendirian / pembubaran anak perusahaan',
+        'financing' => 'Pinjaman / penerbitan surat utang',
+        'asset' => 'Pengalihan / pendayagunaan aset tetap',
+        'partnership' => 'Kerja sama strategis / joint venture',
+        'project' => 'Proyek strategis / Proyek Strategis Nasional',
+        'other' => 'Aksi korporasi lain',
+    ],
+    'decision_organs' => ['direksi' => 'Direksi', 'dekom' => 'Dewan Komisaris / Dewan Pengawas', 'rups' => 'RUPS / Menteri', 'holding' => 'BUMN induk (holding)'],
+
     'rmi' => [
         'dimensions' => [
             'culture' => 'Budaya dan kapabilitas risiko',

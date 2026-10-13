@@ -74,6 +74,7 @@ Route::middleware(['auth', 'session.policy', 'password.fresh', 'throttle:app'])-
     Route::post('/context/scopes', [ContextController::class, 'storeScope'])->name('scopes.store');
     Route::put('/context/scopes/{scope}', [ContextController::class, 'updateScope'])->name('scopes.update');
     Route::delete('/context/scopes/{scope}', [ContextController::class, 'destroyScope'])->name('scopes.destroy');
+    Route::get('/context/scopes/{scope}/kks-pdf', [ContextController::class, 'kksPdf'])->middleware('throttle:20,1')->name('scopes.kks');
     Route::post('/context/factors', [ContextController::class, 'storeFactor'])->name('factors.store');
     Route::put('/context/factors/{factor}', [ContextController::class, 'updateFactor'])->name('factors.update');
     Route::delete('/context/factors/{factor}', [ContextController::class, 'destroyFactor'])->name('factors.destroy');

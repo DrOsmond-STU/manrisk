@@ -149,4 +149,23 @@ class BumnComplianceTest extends \Tests\TestCase
         $pdf->assertOk();
         $this->assertStringStartsWith('%PDF', $pdf->getContent());
     }
+
+    public function test_kks_risk_assessment(): void
+    {
+        $this->as('risk_manager')->post('/context/scopes', ['name' => 'Akuisisi PT X', 'kind' => 'kks'])->assertSessionHasErrors('kks_type');
+        $this->as('risk_manager')->post('/context/scopes', ['name' => 'Akuisisi PT X', 'kind' => 'kks', 'kks_type' => 'acquisition', 'transaction_value' => 750000000000, 'decision_organ' => 'rups', 'decision_date' => now()->toDateString(), 'conclusion' => 'Layak dengan mitigasi.'])->assertSessionHas('success');
+        $scope = \App\Models\Scope::withoutGlobalScopes()->latest('id')->first();
+        $this->assertSame('kks', $scope->kind);
+        $this->as('risk_officer')->post('/risks', $this->riskPayload(['scope_id' => $scope->id, 'inherent_exposure' => 90000000000, 'residual_exposure' => 30000000000]))->assertSessionHas('success');
+        $this->as('risk_officer')->get("/risks?scope_id={$scope->id}")->assertInertia(fn ($p) => $p->where('risks.total', 1));
+        $this->as('risk_officer')->get('/context')->assertInertia(fn ($p) => $p->where('scopes.0.risks_count', 1)->has('kks_types'));
+        $this->as('risk_officer')->get("/risks/create?scope_id={$scope->id}")->assertInertia(fn ($p) => $p->where('prefill.scope_id', (string) $scope->id));
+        $pdf = $this->as('board')->get("/context/scopes/{$scope->id}/kks-pdf");
+        $pdf->assertOk();
+        $this->assertStringStartsWith('%PDF', $pdf->getContent());
+        // ruang lingkup biasa tidak menyimpan atribut KKS dan tidak punya kajian PDF
+        $this->as('risk_manager')->put("/context/scopes/{$scope->id}", ['name' => 'Ruang lingkup', 'kks_type' => 'acquisition'])->assertSessionHas('success');
+        $this->assertNull($scope->fresh()->kks_type);
+        $this->as('risk_manager')->get("/context/scopes/{$scope->id}/kks-pdf")->assertNotFound();
+    }
 }

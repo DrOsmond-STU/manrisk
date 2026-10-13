@@ -8,7 +8,7 @@ import Field from '../../Components/Field.vue';
 import Heatmap from '../../Components/Heatmap.vue';
 import Pill from '../../Components/Pill.vue';
 import { lvFromScore } from '../../lib/format';
-const props = defineProps({ risk: Object, units: Array, categories: Array, owners: Array, objectives: Array, processes: Array, controls: Array, criteria: Object, prefill: { type: Object, default: () => ({}) }, ai: Boolean });
+const props = defineProps({ risk: Object, units: Array, categories: Array, owners: Array, objectives: Array, processes: Array, scopes: { type: Array, default: () => [] }, controls: Array, criteria: Object, prefill: { type: Object, default: () => ({}) }, ai: Boolean });
 const L = usePage().props.labels;
 const edit = !!props.risk;
 const r = props.risk || props.prefill || {};
@@ -90,6 +90,7 @@ const firstErrorStep = () => { const e = Object.keys(form.errors); if (!e.length
       <Field v-model="form.category_id" type="select" label="Kategori (taksonomi T1 › T2 › T3)" :options="categories" option-label="label" required :error="form.errors.category_id" :hint="cat ? `Appetite ${cat.appetite} · Tolerance ${cat.tolerance}` : ''" />
       <Field v-model="form.objective_id" type="select" label="Sasaran strategis terkait" :options="objectives.map((o) => ({ id: o.id, name: `${o.code} · ${o.name}` }))" :error="form.errors.objective_id" />
       <Field v-model="form.process_id" type="select" label="Proses bisnis" :options="unitProcesses" :error="form.errors.process_id" />
+      <Field v-model="form.scope_id" type="select" label="Ruang lingkup / kajian KKS" :options="scopes" :error="form.errors.scope_id" hint="Kaitkan risiko dengan kajian Kegiatan Korporasi Signifikan bila ada" />
       <div class="row" style="gap:12px"><Field v-model="form.source_type" type="select" label="Sumber" :options="{ internal: 'Internal', external: 'Eksternal' }" empty="" required style="flex:1" /><Field v-model="form.source_kind" type="select" label="Jenis sumber" :options="L.source_kinds" empty="" required style="flex:1" :error="form.errors.source_kind" /></div>
       <div v-if="ai && !edit" class="field span"><label>Susun pernyataan dari catatan bebas (opsional)</label><div class="row" style="gap:8px"><input v-model="aiNote" class="inp" style="flex:1" maxlength="2000" placeholder="mis. server tunggal tanpa cadangan, kalau mati layanan perizinan berhenti dan masyarakat komplain"><button type="button" class="btn c-violet" :disabled="aiBusy" @click="aiStatement"><Icon name="spark" />Susun</button></div></div>
       <Field v-model="form.cause" type="textarea" label="Penyebab (karena…)" required span :error="form.errors.cause" :rows="2" maxlength="2000" />

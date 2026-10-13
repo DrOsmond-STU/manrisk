@@ -5,22 +5,22 @@ import PageHead from '../../Components/PageHead.vue';
 import Pill from '../../Components/Pill.vue';
 import Pagination from '../../Components/Pagination.vue';
 import Field from '../../Components/Field.vue';
-const props = defineProps({ risks: Object, filters: Object, units: Array, categories: Array, owners: Array, objectives: Array, processes: { type: Array, default: () => [] }, can: Object });
+const props = defineProps({ risks: Object, filters: Object, units: Array, categories: Array, owners: Array, objectives: Array, processes: { type: Array, default: () => [] }, scopes: { type: Array, default: () => [] }, can: Object });
 const L = usePage().props.labels;
-const f = reactive({ q: props.filters.q || '', unit_id: props.filters.unit_id || '', category_id: props.filters.category_id || '', level: props.filters.level || '', status: props.filters.status || '', evaluation: props.filters.evaluation || '', owner_id: props.filters.owner_id || '', objective_id: props.filters.objective_id || '', process_id: props.filters.process_id || '', trend: props.filters.trend || '', mode: props.filters.mode || '', l: props.filters.l || '', i: props.filters.i || '', no_controls: props.filters.no_controls || '', period: props.filters.period || '', ids: props.filters.ids || '', per_page: props.filters.per_page || '', sort: props.filters.sort || 'residual_score', dir: props.filters.dir || 'desc' });
+const f = reactive({ q: props.filters.q || '', unit_id: props.filters.unit_id || '', category_id: props.filters.category_id || '', level: props.filters.level || '', status: props.filters.status || '', evaluation: props.filters.evaluation || '', owner_id: props.filters.owner_id || '', objective_id: props.filters.objective_id || '', process_id: props.filters.process_id || '', scope_id: props.filters.scope_id || '', trend: props.filters.trend || '', mode: props.filters.mode || '', l: props.filters.l || '', i: props.filters.i || '', no_controls: props.filters.no_controls || '', period: props.filters.period || '', ids: props.filters.ids || '', per_page: props.filters.per_page || '', sort: props.filters.sort || 'residual_score', dir: props.filters.dir || 'desc' });
 const active = () => Object.fromEntries(Object.entries(f).filter(([, v]) => v !== '' && v !== null));
 const exportUrl = (fmt) => `/risks/export?${new URLSearchParams({ ...active(), format: fmt })}`;
 // Filter ganda (mis. dari dashboard "Tinggi & sangat tinggi") tetap dapat dipilih di dropdown
 const levelOpts = { ...L.levels, 'high,very_high': `${L.levels.high} & ${L.levels.very_high}` };
 const evalOpts = { ...L.evaluations, 'escalate,critical': 'Perlu eskalasi & kritis', 'treat,escalate,critical': 'Perlu penanganan ke atas' };
 const procName = (id) => props.processes.find((p) => p.id == id)?.name || `#${id}`;
-const scopeQs = () => new URLSearchParams(Object.fromEntries(Object.entries(active()).filter(([k]) => ['unit_id', 'category_id', 'level', 'status', 'evaluation', 'owner_id', 'objective_id', 'process_id', 'q'].includes(k)))).toString();
+const scopeQs = () => new URLSearchParams(Object.fromEntries(Object.entries(active()).filter(([k]) => ['unit_id', 'category_id', 'level', 'status', 'evaluation', 'owner_id', 'objective_id', 'process_id', 'scope_id', 'q'].includes(k)))).toString();
 const modeLabel = { inherent: 'inheren', residual: 'residual', target: 'target' };
 let t;
 const apply = () => router.get('/risks', Object.fromEntries(Object.entries(f).filter(([, v]) => v !== '' && v !== null)), { preserveState: true, replace: true });
 watch(f, () => { clearTimeout(t); t = setTimeout(apply, 350); });
 const sortBy = (c) => { if (f.sort === c) f.dir = f.dir === 'asc' ? 'desc' : 'asc'; else { f.sort = c; f.dir = c === 'name' || c === 'code' ? 'asc' : 'desc'; } };
-const reset = () => Object.assign(f, { q: '', unit_id: '', category_id: '', level: '', status: '', evaluation: '', owner_id: '', objective_id: '', process_id: '', trend: '', mode: '', l: '', i: '', no_controls: '', period: '', ids: '' });
+const reset = () => Object.assign(f, { q: '', unit_id: '', category_id: '', level: '', status: '', evaluation: '', owner_id: '', objective_id: '', process_id: '', scope_id: '', trend: '', mode: '', l: '', i: '', no_controls: '', period: '', ids: '' });
 </script>
 <template>
   <Head title="Risk Register" />
@@ -32,10 +32,10 @@ const reset = () => Object.assign(f, { q: '', unit_id: '', category_id: '', leve
     <a :href="exportUrl('pdf')" class="btn c-red"><Icon name="file" />PDF</a>
     <Link v-if="can.import" href="/import/risk" class="btn c-teal"><Icon name="upload" />Impor Excel</Link>
   </PageHead>
-  <div v-if="f.l && f.i || f.no_controls || f.trend || f.process_id || f.period || f.ids" class="row" style="gap:6px">
+  <div v-if="f.l && f.i || f.no_controls || f.trend || f.process_id || f.scope_id || f.period || f.ids" class="row" style="gap:6px">
     <span v-if="f.l && f.i" class="pill run">Sel {{ modeLabel[f.mode || 'residual'] }} L{{ f.l }} × I{{ f.i }}</span>
-    <span v-if="f.no_controls" class="pill warn">Risiko tanpa kontrol</span><span v-if="f.trend" class="pill run">Tren: {{ f.trend }}</span><span v-if="f.process_id" class="pill run">Proses: {{ procName(f.process_id) }}</span><span v-if="f.period" class="pill run">Tahun {{ f.period }}</span><span v-if="f.ids" class="pill run">{{ f.ids.split(',').length }} risiko hasil impor</span>
-    <button type="button" class="btn sm ghost c-indigo" @click="Object.assign(f, { mode: '', l: '', i: '', no_controls: '', trend: '', process_id: '', period: '', ids: '' })">Hapus filter khusus</button>
+    <span v-if="f.no_controls" class="pill warn">Risiko tanpa kontrol</span><span v-if="f.trend" class="pill run">Tren: {{ f.trend }}</span><span v-if="f.process_id" class="pill run">Proses: {{ procName(f.process_id) }}</span><span v-if="f.scope_id" class="pill run">Kajian: {{ scopes.find((s) => s.id == f.scope_id)?.name || `#${f.scope_id}` }}</span><span v-if="f.period" class="pill run">Tahun {{ f.period }}</span><span v-if="f.ids" class="pill run">{{ f.ids.split(',').length }} risiko hasil impor</span>
+    <button type="button" class="btn sm ghost c-indigo" @click="Object.assign(f, { mode: '', l: '', i: '', no_controls: '', trend: '', process_id: '', scope_id: '', period: '', ids: '' })">Hapus filter khusus</button>
   </div>
   <div class="card"><div class="card-b filters">
     <Field v-model="f.q" placeholder="Cari kode / nama / peristiwa" label="Cari" style="flex:1;min-width:200px" />
