@@ -35,7 +35,7 @@ class KriController extends Controller
             $kris = $kris->filter(fn ($k) => !$k->risk || in_array($k->risk->unit_id, $ids, true))->values();
         }
         return Inertia::render('Kris/Index', [
-            'kris' => $kris->map(fn ($k) => collect($k->toArray())->except('improvements')->all() + ['improvement' => $k->improvements->first()?->only('id', 'code', 'title', 'status'),
+            'kris' => $this->paginateCollection($kris, 12)->through(fn ($k) => collect($k->toArray())->except('improvements')->all() + ['improvement' => $k->improvements->first()?->only('id', 'code', 'title', 'status'),
                 'series' => $k->values->sortBy('period')->values()->map(fn ($v) => ['period' => $v->period->format('Y-m'), 'value' => (float) $v->value])]),
             'filters' => $f,
             'filter_labels' => array_filter(['risk' => !empty($f['risk_id']) ? \App\Models\Risk::find($f['risk_id'])?->only('id', 'code', 'name') : null, 'unit' => $unit?->name]),

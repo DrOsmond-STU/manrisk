@@ -22,6 +22,7 @@
 @if($s->area)<p><b>Dampak terhadap profil risiko korporasi:</b> <span style="white-space:pre-line">{{ $s->area }}</span></p>@endif
 
 <h2>3. Register risiko kegiatan</h2>
+@if($unit_scoped)<p style="color:#526883">Daftar dibatasi pada risiko dalam cakupan unit Anda.</p>@endif
 <table><thead><tr><th>Kode</th><th>Risiko</th><th>Taksonomi</th><th>Pemilik</th><th>Inheren</th><th class="num">Eksposur inheren</th><th>Residual</th><th class="num">Eksposur residual</th><th>Perlakuan</th></tr></thead><tbody>
 @forelse($risks as $r)
 @php $il = $inherentLevel($r); @endphp

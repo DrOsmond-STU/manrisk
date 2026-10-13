@@ -2,6 +2,8 @@
 import { computed, ref } from 'vue';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import PageHead from '../../Components/PageHead.vue';
+import LocalPager from '../../Components/LocalPager.vue';
+import { usePager } from '../../lib/pager';
 import CrudModal from '../../Components/CrudModal.vue';
 import ConfirmButton from '../../Components/ConfirmButton.vue';
 import Modal from '../../Components/Modal.vue';
@@ -12,6 +14,8 @@ const props = defineProps({ versions: Array, categories: Array, default_matrix: 
 const lvNames = (v) => props.schemes[v?.scheme || 'standard']?.levels || L.levels;
 const L = usePage().props.labels;
 const tab = ref('criteria');
+const verPager = usePager(() => props.versions, 6);
+const catPager = usePager(() => props.categories, 15);
 const active = computed(() => props.versions.find((v) => v.active) || props.versions[0]);
 const view = ref(active.value);
 const catModal = ref(false); const catItem = ref(null);
@@ -37,7 +41,8 @@ const activate = (v) => { if (confirm(`Aktifkan kriteria versi ${v.version}? Sel
   <div class="tabs"><button type="button" :class="{ on: tab === 'criteria' }" @click="tab = 'criteria'">Kriteria & matriks<span class="c">v{{ active?.version }}</span></button><button type="button" :class="{ on: tab === 'taxonomy' }" @click="tab = 'taxonomy'">Taksonomi & appetite<span class="c">{{ categories.length }}</span></button></div>
   <div v-if="tab === 'criteria' && view" class="s-grid">
     <div class="card" style="grid-column:span 4"><div class="card-h"><h3>Versi kriteria</h3></div><div class="card-b stack">
-      <div v-for="v in versions" :key="v.id" class="row between" style="padding:8px 10px;border:1px solid var(--line);border-radius:10px" :style="view?.id === v.id ? 'outline:2px solid var(--accent)' : ''"><div><b>Versi {{ v.version }}</b> <Pill v-if="v.active" value="active" /><div class="hint">berlaku {{ fmt.date(v.effective_from) }} · {{ v.creator?.name || 'sistem' }}</div></div><span class="row"><button type="button" class="btn sm ghost c-indigo" @click="view = v">Lihat</button><button v-if="can.write && !v.active" type="button" class="btn sm c-amber" @click="activate(v)">Aktifkan</button></span></div>
+      <div v-for="v in verPager.items" :key="v.id" class="row between" style="padding:8px 10px;border:1px solid var(--line);border-radius:10px" :style="view?.id === v.id ? 'outline:2px solid var(--accent)' : ''"><div><b>Versi {{ v.version }}</b> <Pill v-if="v.active" value="active" /><div class="hint">berlaku {{ fmt.date(v.effective_from) }} · {{ v.creator?.name || 'sistem' }}</div></div><span class="row"><button type="button" class="btn sm ghost c-indigo" @click="view = v">Lihat</button><button v-if="can.write && !v.active" type="button" class="btn sm c-amber" @click="activate(v)">Aktifkan</button></span></div>
+      <LocalPager :p="verPager" />
       <div class="alert-box info"><Icon name="info" /><span>Ambang: eskalasi ≥ <b>{{ view.thresholds?.escalate }}</b>, kritis ≥ <b>{{ view.thresholds?.critical }}</b>. Risiko dengan skor residual ≥ eskalasi wajib disetujui Management.</span></div>
     </div></div>
     <div class="card" style="grid-column:span 8"><div class="card-h"><h3>Matriks level (versi {{ view.version }})</h3><span class="sub">{{ schemes[view.scheme || 'standard']?.label }}</span></div><div class="card-b">
@@ -49,8 +54,8 @@ const activate = (v) => { if (confirm(`Aktifkan kriteria versi ${v.version}? Sel
   <div v-if="tab === 'taxonomy'" class="alert-box info"><Icon name="flag" /><div><b>Pernyataan risk appetite:</b> {{ appetite?.appetite_statement || 'Belum ditetapkan — isi di Pengaturan Organisasi.' }}<div v-if="appetite?.appetite_basis" class="hint">Dasar: {{ appetite.appetite_basis }} · ditetapkan {{ fmt.date(appetite.appetite_date) }}</div></div></div>
   <div v-if="tab === 'taxonomy'" class="alert-box info"><Icon name="info" /><span>Taksonomi bertingkat sesuai PER-2/MBU/03/2023: <b>T1 Tema Risiko</b> › <b>T2 Kategori Risiko</b> › <b>T3 Kelompok Peristiwa Risiko</b>. Isi kode Taksonomi Risiko Portofolio BUMN agar profil risiko dapat diagregasi. Jumlah risiko pada T1/T2 sudah mencakup turunannya.</span></div>
   <div v-if="tab === 'taxonomy'" class="card"><div class="card-b flush tbl-wrap"><table class="tbl"><thead><tr><th>Taksonomi</th><th>Tingkat</th><th>Kode BUMN</th><th class="num">Appetite</th><th class="num">Tolerance</th><th class="num">Risk limit</th><th class="num">Risiko aktif</th><th>Status</th><th></th></tr></thead><tbody>
-    <tr v-for="c in categories" :key="c.id"><td class="t-main wrap"><span :style="`padding-left:${(c.depth - 1) * 18}px`"><span v-if="c.depth > 1" class="muted">└ </span>{{ c.name }}</span><div class="t-sub" :style="`padding-left:${(c.depth - 1) * 18}px`">{{ c.description || c.name_en }}</div></td><td><span class="pill">{{ (tiers[c.depth] || `T${c.depth}`).split(' · ')[0] }}</span></td><td class="mono">{{ c.bumn_code || '—' }}</td><td class="num mono">{{ c.appetite }}</td><td class="num mono">{{ c.tolerance }}</td><td class="num">{{ c.risk_limit ? fmt.short(c.risk_limit) : '—' }}</td><td class="num"><Link :href="`/risks?category_id=${c.id}&status=active`">{{ c.risks_total }}</Link><div v-if="c.risks_total !== c.risks_count" class="t-sub">{{ c.risks_count }} langsung</div></td><td><Pill :value="c.active ? 'active' : 'inactive'" /></td><td><span class="row" style="justify-content:flex-end"><button v-if="can.write" type="button" class="btn sm c-blue" @click="catItem = c; catModal = true">Ubah</button><ConfirmButton v-if="can.delete" :href="`/criteria/categories/${c.id}`" /></span></td></tr>
-  </tbody></table></div></div>
+    <tr v-for="c in catPager.items" :key="c.id"><td class="t-main wrap"><span :style="`padding-left:${(c.depth - 1) * 18}px`"><span v-if="c.depth > 1" class="muted">└ </span>{{ c.name }}</span><div class="t-sub" :style="`padding-left:${(c.depth - 1) * 18}px`">{{ c.description || c.name_en }}</div></td><td><span class="pill">{{ (tiers[c.depth] || `T${c.depth}`).split(' · ')[0] }}</span></td><td class="mono">{{ c.bumn_code || '—' }}</td><td class="num mono">{{ c.appetite }}</td><td class="num mono">{{ c.tolerance }}</td><td class="num">{{ c.risk_limit ? fmt.short(c.risk_limit) : '—' }}</td><td class="num"><Link :href="`/risks?category_id=${c.id}&status=active`">{{ c.risks_total }}</Link><div v-if="c.risks_total !== c.risks_count" class="t-sub">{{ c.risks_count }} langsung</div></td><td><Pill :value="c.active ? 'active' : 'inactive'" /></td><td><span class="row" style="justify-content:flex-end"><button v-if="can.write" type="button" class="btn sm c-blue" @click="catItem = c; catModal = true">Ubah</button><ConfirmButton v-if="can.delete" :href="`/criteria/categories/${c.id}`" /></span></td></tr>
+  </tbody></table></div><LocalPager :p="catPager" /></div>
   <CrudModal :show="catModal" :title="catItem ? 'Ubah kategori' : 'Tambah kategori'" :fields="catFields" :item="catItem" :url="catItem ? `/criteria/categories/${catItem.id}` : '/criteria/categories'" :method="catItem ? 'put' : 'post'" @close="catModal = false" />
   <Modal :show="newModal" title="Versi kriteria baru" wide @close="newModal = false">
     <div class="stack">

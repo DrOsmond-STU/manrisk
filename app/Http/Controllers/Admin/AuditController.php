@@ -25,7 +25,7 @@ class AuditController extends Controller
             'actions' => AuditLog::where('organization_id', $org)->select('action')->distinct()->orderBy('action')->pluck('action'),
             'subjects' => AuditLog::where('organization_id', $org)->select('subject_type')->distinct()->pluck('subject_type')->map(fn ($s) => class_basename($s))->unique()->sort()->values(),
             'users' => $this->userOptions(),
-            'auth_logs' => $request->user()->hasRole('super_admin', 'risk_admin', 'auditor') ? AuthLog::with('user:id,name')->where('organization_id', $org)->latest('id')->limit(200)->get() : [],
+            'auth_logs' => $request->user()->hasRole('super_admin', 'risk_admin', 'auditor') ? AuthLog::with('user:id,name')->where('organization_id', $org)->latest('id')->paginate(25, ['*'], 'apage')->withQueryString() : null,
         ]);
     }
 

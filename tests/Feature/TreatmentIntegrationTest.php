@@ -29,13 +29,13 @@ class TreatmentIntegrationTest extends TestCase
         $this->as('risk_manager')->post('/controls', ['name' => 'Rekonsiliasi', 'type' => 'detective', 'mode' => 'manual', 'frequency' => 'monthly', 'unit_id' => $this->unitA->id, 'risk_ids' => [$riskA->id, $riskB->id]])->assertSessionHas('success');
         $c = Control::withoutGlobalScopes()->first();
         $payload = ['name' => 'Rekonsiliasi 2', 'type' => 'detective', 'mode' => 'manual', 'frequency' => 'monthly', 'unit_id' => $this->unitA->id];
-        $this->as('risk_officer')->get('/controls')->assertInertia(fn ($p) => $p->where('controls.0.risks', fn ($r) => collect($r)->pluck('id')->all() === [$riskA->id]));
+        $this->as('risk_officer')->get('/controls')->assertInertia(fn ($p) => $p->where('controls.data.0.risks', fn ($r) => collect($r)->pluck('id')->all() === [$riskA->id]));
         $this->as('risk_officer')->put("/controls/{$c->id}", $payload + ['risk_ids' => [$riskA->id]])->assertSessionHas('success');
         $this->assertEqualsCanonicalizing([$riskA->id, $riskB->id], $c->risks()->pluck('risks.id')->all());
         $this->as('risk_officer')->put("/controls/{$c->id}", $payload + ['risk_ids' => []])->assertSessionHas('success');
         $this->assertSame([$riskB->id], $c->risks()->pluck('risks.id')->all()); // hanya tautan unit sendiri yang dilepas
-        $this->as('risk_manager')->get("/controls?risk_id={$riskB->id}")->assertInertia(fn ($p) => $p->has('controls', 1)->where('filter_risk.id', $riskB->id));
-        $this->as('risk_manager')->get("/controls?risk_id={$riskA->id}")->assertInertia(fn ($p) => $p->has('controls', 0));
+        $this->as('risk_manager')->get("/controls?risk_id={$riskB->id}")->assertInertia(fn ($p) => $p->has('controls.data', 1)->where('filter_risk.id', $riskB->id));
+        $this->as('risk_manager')->get("/controls?risk_id={$riskA->id}")->assertInertia(fn ($p) => $p->has('controls.data', 0));
 
         // kontrol tanpa risiko tetap memicu peringatan & improvement yang tertaut ke kontrol
         $this->as('risk_manager')->post('/controls', ['name' => 'Tanpa risiko', 'type' => 'preventive', 'mode' => 'manual', 'frequency' => 'monthly', 'owner_id' => $this->users['risk_owner']->id]);
@@ -59,9 +59,9 @@ class TreatmentIntegrationTest extends TestCase
         $this->assertDatabaseHas('improvements', ['source_type' => 'kri_breach', 'subject_type' => 'kri', 'subject_id' => $kri->id, 'risk_id' => $risk->id]);
         $this->assertDatabaseHas('alerts', ['type' => 'kri_breach', 'subject_type' => 'kri', 'subject_id' => $kri->id, 'handled_at' => null]);
         $imp = Improvement::withoutGlobalScopes()->where('subject_type', 'kri')->first();
-        $this->get("/kris?risk_id={$risk->id}")->assertInertia(fn ($p) => $p->has('kris', 1)->where('kris.0.improvement.id', $imp->id)->where('filter_labels.risk.id', $risk->id));
-        $this->get('/kris?status=breach')->assertInertia(fn ($p) => $p->has('kris', 1));
-        $this->get("/kris?unit_id={$this->unitB->id}")->assertInertia(fn ($p) => $p->has('kris', 0));
+        $this->get("/kris?risk_id={$risk->id}")->assertInertia(fn ($p) => $p->has('kris.data', 1)->where('kris.data.0.improvement.id', $imp->id)->where('filter_labels.risk.id', $risk->id));
+        $this->get('/kris?status=breach')->assertInertia(fn ($p) => $p->has('kris.data', 1));
+        $this->get("/kris?unit_id={$this->unitB->id}")->assertInertia(fn ($p) => $p->has('kris.data', 0));
         $this->put("/kris/{$kri->id}", $base + ['threshold_warn' => 10, 'threshold_crit' => 20])->assertSessionHas('success');
         $this->assertSame('normal', $kri->fresh()->status);
         $this->assertSame(0, Alert::withoutGlobalScopes()->where('subject_type', 'kri')->where('subject_id', $kri->id)->whereNull('handled_at')->count());
@@ -88,7 +88,7 @@ class TreatmentIntegrationTest extends TestCase
         $this->as('risk_officer')->post('/incidents/losses', ['year' => 2025, 'risk_name' => 'x', 'event' => 'y', 'amount' => 1])->assertForbidden();
         $this->actingAs($this->users['risk_manager']);
         LossEvent::create(['year' => 2025, 'risk_name' => 'Lain', 'event' => 'e', 'amount' => 5]);
-        $this->as('risk_officer')->get('/incidents/losses')->assertInertia(fn ($p) => $p->has('losses', 1)->where('losses.0.incident.risk.id', $risk->id));
+        $this->as('risk_officer')->get('/incidents/losses')->assertInertia(fn ($p) => $p->has('losses.data', 1)->where('losses.data.0.incident.risk.id', $risk->id));
     }
 
     public function test_plan_pic_from_other_unit_and_cancel_reevaluates_risk(): void
@@ -100,7 +100,7 @@ class TreatmentIntegrationTest extends TestCase
         app(\App\Services\AlertService::class)->raise('action_overdue', 'warning', $open, 'terlambat', null, '/x', 'action:test');
         $this->as('risk_officer')->get("/action-plans/{$open->id}")->assertOk()->assertInertia(fn ($p) => $p->where('can.progress', true)->where('can.view_risk', false));
         $this->as('risk_officer')->get("/action-plans/{$done->id}")->assertForbidden();
-        $this->as('risk_manager')->get("/action-plans?unit_id={$this->unitB->id}&status=overdue")->assertInertia(fn ($p) => $p->has('plans', 1));
+        $this->as('risk_manager')->get("/action-plans?unit_id={$this->unitB->id}&status=overdue")->assertInertia(fn ($p) => $p->has('plans.data', 1));
         $this->as('risk_manager')->post("/action-plans/{$open->id}/cancel", ['reason' => 'tidak relevan'])->assertSessionHas('success');
         $this->assertSame('monitoring', $riskB->fresh()->status);
         $this->assertNotNull(Alert::withoutGlobalScopes()->where('dedupe_key', 'action:test')->value('handled_at'));
@@ -121,15 +121,15 @@ class TreatmentIntegrationTest extends TestCase
         $mk('IMP-B', ['unit_id' => $this->unitB->id]);
         $mk('IMP-BPIC', ['unit_id' => $this->unitB->id, 'pic_id' => $this->users['risk_officer']->id]);
         $mk('IMP-KRI', ['source_type' => 'kri_breach', 'subject_type' => 'kri', 'subject_id' => $kri->id, 'risk_id' => $riskA->id, 'status' => 'in_progress']);
-        $codes = fn ($res) => collect($this->props($res)['items'])->pluck('code')->sort()->values()->all();
+        $codes = fn ($res) => collect($this->props($res)['items']['data'])->pluck('code')->sort()->values()->all();
         $this->assertSame(['IMP-A', 'IMP-BPIC', 'IMP-KRI'], $codes($this->as('risk_officer')->get('/improvements')));
         $this->assertSame(['IMP-KRI'], $codes($this->as('risk_officer')->get("/improvements?subject_type=kri&subject_id={$kri->id}")));
         $this->assertSame(['IMP-KRI'], $codes($this->as('risk_manager')->get("/improvements?risk_id={$riskA->id}")));
         $this->assertSame(['IMP-A', 'IMP-B', 'IMP-BPIC'], $codes($this->as('risk_manager')->get('/improvements?status=open&source_type=audit')));
         $r = $this->as('risk_officer')->get("/improvements?subject_type=kri&subject_id={$kri->id}");
-        $this->assertSame(['type' => 'kri', 'id' => $kri->id, 'code' => 'KRI-001', 'name' => 'K', 'risk_id' => $riskA->id], $this->props($r)['items'][0]['subject']);
+        $this->assertSame(['type' => 'kri', 'id' => $kri->id, 'code' => 'KRI-001', 'name' => 'K', 'risk_id' => $riskA->id], $this->props($r)['items']['data'][0]['subject']);
         $this->assertSame('KRI-001', explode(' ', $this->props($r)['filter_labels']['subject'])[1]);
-        $pic = collect($this->props($this->as('risk_officer')->get('/improvements'))['items'])->firstWhere('code', 'IMP-BPIC');
+        $pic = collect($this->props($this->as('risk_officer')->get('/improvements'))['items']['data'])->firstWhere('code', 'IMP-BPIC');
         $this->assertTrue($pic['can_update']);
         // risiko/sumber terkait divalidasi cakupan unit
         $this->as('risk_officer')->post('/improvements', ['source_type' => 'audit', 'title' => 'X', 'status' => 'open', 'risk_id' => $riskB->id])->assertForbidden();

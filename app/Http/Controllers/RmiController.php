@@ -26,7 +26,7 @@ class RmiController extends Controller
         $every = (int) config('manrisk.rmi.independent_every_years');
         $user = $request->user();
         return Inertia::render('Rmi/Index', [
-            'assessments' => $assessments,
+            'assessments' => $this->paginateCollection($assessments, 10),
             'parameters' => RmiParameter::orderBy('dimension')->orderBy('sort')->orderBy('code')->get(),
             'dimensions' => config('manrisk.rmi.dimensions'),
             'phases' => config('manrisk.rmi.phases'),
@@ -57,7 +57,8 @@ class RmiController extends Controller
             return back()->with('error', 'Tambahkan parameter penilaian terlebih dahulu (tab Parameter).');
         }
         $a = DB::transaction(function () use ($data, $params, $request) {
-            $a = RmiAssessment::create($data + ['status' => 'draft', 'created_by' => $request->user()->id]);
+            $a = new RmiAssessment($data);
+            $a->forceFill(['status' => 'draft', 'created_by' => $request->user()->id])->save();
             foreach ($params as $id) {
                 RmiScore::create(['assessment_id' => $a->id, 'parameter_id' => $id]);
             }
@@ -85,7 +86,7 @@ class RmiController extends Controller
         $this->authorize('update', $assessment);
         abort_if($assessment->status !== 'draft', 422, 'Penilaian final tidak dapat diubah.');
         $data = $request->validate([
-            'scores' => ['required', 'array'],
+            'scores' => ['required', 'array', 'max:500'],
             'scores.*.id' => ['required', 'integer'],
             'scores.*.score' => ['nullable', 'integer', 'between:1,5'],
             'scores.*.evidence' => ['nullable', 'string', 'max:2000'],
@@ -94,8 +95,21 @@ class RmiController extends Controller
             'note' => ['nullable', 'string', 'max:4000'],
         ]);
         DB::transaction(function () use ($data, $assessment) {
+            $before = $assessment->scores()->with('parameter:id,code')->get()->keyBy('id');
+            $changes = [];
             foreach ($data['scores'] as $s) {
-                $assessment->scores()->whereKey($s['id'])->update(['score' => $s['score'] ?? null, 'evidence' => $s['evidence'] ?? null]);
+                $old = $before->get($s['id']);
+                if (!$old) {
+                    continue; // hanya skor milik penilaian ini
+                }
+                $new = ['score' => $s['score'] ?? null, 'evidence' => $s['evidence'] ?? null];
+                if ($old->score !== $new['score'] || (string) $old->evidence !== (string) $new['evidence']) {
+                    $changes[$old->parameter?->code ?? "#{$old->id}"] = [$old->score, $new['score']];
+                    $old->update($new);
+                }
+            }
+            if ($changes) {
+                AuditLog::record('scored', $assessment, $changes, 'rmi.scores');
             }
             $assessment->fill(collect($data)->only('assessor', 'assessed_at', 'note')->all());
             $assessment->refreshScore();
@@ -172,7 +186,7 @@ class RmiController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'guidance' => ['nullable', 'string', 'max:4000'],
             'weight' => ['required', 'numeric', 'min:0.01', 'max:100'],
-            'sort' => ['nullable', 'integer', 'min:0'],
+            'sort' => ['nullable', 'integer', 'min:0', 'max:65535'],
             'active' => ['nullable', 'boolean'],
         ]);
         return ['sort' => (int) ($data['sort'] ?? 0), 'active' => (bool) ($data['active'] ?? true)] + $data;

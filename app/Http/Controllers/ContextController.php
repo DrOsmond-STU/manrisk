@@ -16,11 +16,11 @@ class ContextController extends Controller
     {
         $this->authorize('viewAny', Scope::class);
         return Inertia::render('Context/Index', [
-            'scopes' => Scope::with(['unit:id,name', 'creator:id,name'])->withCount(['factors', 'consultations', 'risks'])->latest()->get(),
+            'scopes' => Scope::with(['unit:id,name', 'creator:id,name'])->withCount(['factors', 'consultations', 'risks' => fn ($q) => $this->scopeUnits($q)])->latest()->get(),
             'kks_types' => config('manrisk.kks_types'),
             'decision_organs' => config('manrisk.decision_organs'),
             'factors' => ContextFactor::with('scope:id,name')->orderBy('kind')->orderBy('nature')->get(),
-            'consultations' => Consultation::with('scope:id,name')->orderByDesc('held_on')->get(),
+            'consultations' => Consultation::with('scope:id,name')->orderByDesc('held_on')->paginate(10, ['*'], 'cpage')->withQueryString(),
             'units' => $this->unitOptions(),
             'can' => ['write' => auth()->user()->can('create', Scope::class), 'delete' => auth()->user()->can('delete', new Scope())],
         ]);
@@ -75,13 +75,14 @@ class ContextController extends Controller
     {
         $this->authorize('view', $scope);
         abort_if($scope->kind !== 'kks', 404);
-        $risks = $scope->risks()->with(['category:id,name,bumn_code', 'owner:id,name', 'unit:id,name', 'actionPlans:id,risk_id,code,title,due_date,status,budget'])->orderByDesc('residual_score')->get();
+        // pengguna bercakupan unit hanya melihat risiko unitnya (sama dengan Risk Register)
+        $risks = $this->scopeUnits($scope->risks())->with(['category:id,name,bumn_code', 'owner:id,name', 'unit:id,name', 'actionPlans:id,risk_id,code,title,due_date,status,budget'])->orderByDesc('residual_score')->get();
         $scoring = app(\App\Support\Scoring::class);
         \App\Models\AuditLog::record('exported', $scope, [], 'kks.pdf');
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('reports.kks', ['title' => 'Kajian Risiko Kegiatan Korporasi Signifikan', 'org' => auth()->user()->organization?->name,
             'generated_at' => now(), 'by' => auth()->user()->name, 'filter_label' => null, 's' => $scope->load('unit:id,name', 'factors', 'consultations'), 'risks' => $risks,
             'level_labels' => \App\Support\Scoring::levels(), 'inherentLevel' => fn ($r) => $scoring->level($r->inherent_l, $r->inherent_i),
-            'kks_types' => config('manrisk.kks_types'), 'organs' => config('manrisk.decision_organs'), 'settings' => auth()->user()->organization?->settings ?? []]);
+            'kks_types' => config('manrisk.kks_types'), 'organs' => config('manrisk.decision_organs'), 'settings' => auth()->user()->organization?->settings ?? [], 'unit_scoped' => auth()->user()->isUnitScoped()]);
         return response($pdf->output(), 200, ['Content-Type' => 'application/pdf', 'Content-Disposition' => 'attachment; filename="kajian-risiko-kks-' . $scope->id . '.pdf"']);
     }
 

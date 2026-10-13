@@ -26,8 +26,8 @@ class ReportController extends Controller
             'initial' => (object) collect(\Illuminate\Support\Facades\Validator::make($request->query(), ['type' => ['nullable', Rule::in(array_keys(ReportService::TYPES))]] + $this->filterRules())->valid())
                 ->only(['type', ...ReportService::RISK_FILTERS])->filter(fn ($v) => is_scalar($v) && $v !== '')->all(),
             // berkas laporan tidak disimpan di server (langsung diunduh), jadi riwayat menyediakan "ulangi" dengan parameter yang sama
-            'jobs' => ReportJob::with('user:id,name')->when(!$request->user()->hasRole('super_admin', 'risk_admin', 'risk_manager'), fn ($q) => $q->where('user_id', $request->user()->id))->latest()->limit(20)->get(['id', 'user_id', 'type', 'format', 'status', 'params', 'error', 'created_at', 'finished_at']),
-            'schedules' => \App\Models\ReportSchedule::with('user:id,name')->when(!$request->user()->hasRole('super_admin', 'risk_admin', 'risk_manager'), fn ($q) => $q->where('user_id', $request->user()->id))->orderBy('id')->get(),
+            'jobs' => ReportJob::with('user:id,name')->when(!$request->user()->hasRole('super_admin', 'risk_admin', 'risk_manager'), fn ($q) => $q->where('user_id', $request->user()->id))->latest()->paginate(10, ['id', 'user_id', 'type', 'format', 'status', 'params', 'error', 'created_at', 'finished_at'], 'jpage')->withQueryString(),
+            'schedules' => \App\Models\ReportSchedule::with('user:id,name')->when(!$request->user()->hasRole('super_admin', 'risk_admin', 'risk_manager'), fn ($q) => $q->where('user_id', $request->user()->id))->orderBy('id')->paginate(10, ['*'], 'spage')->withQueryString(),
         ]);
     }
 

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AuditLog;
 use App\Http\Requests\RiskRequest;
 use App\Models\Control;
 use App\Models\CriteriaVersion;
@@ -218,6 +219,23 @@ class RiskController extends Controller
         return ['year' => $year, 'rows' => $rows];
     }
 
+    /** Target triwulan tahun berjalan dalam bentuk ternormalisasi (untuk deteksi perubahan, audit, dan pemulihan). */
+    private function quarterTargetState(Risk $risk): array
+    {
+        return $this->normalizeTargets($risk->quarterTargets()->where('year', now()->year)->get()->toArray());
+    }
+
+    private function normalizeTargets(array $rows): array
+    {
+        $out = [];
+        foreach ($rows as $t) {
+            $exp = $t['target_exposure'] ?? null;
+            $out[(int) $t['quarter']] = ['quarter' => (int) $t['quarter'], 'target_l' => (int) $t['target_l'], 'target_i' => (int) $t['target_i'], 'target_exposure' => $exp === null || $exp === '' ? null : (float) $exp];
+        }
+        ksort($out);
+        return array_values($out);
+    }
+
     /** Simpan target residual per triwulan untuk tahun berjalan (baris yang tidak dikirim dihapus). */
     private function syncQuarterTargets(Risk $risk, array $data): void
     {
@@ -291,8 +309,11 @@ class RiskController extends Controller
             // Nilai terakhir yang berlaku — dipulihkan bila perubahan skor ditolak/dikembalikan
             $restore = $risk->only([...$scoreFields, 'inherent_dims', 'residual_dims', 'previous_score', 'inherent_exposure', 'residual_exposure', 'target_exposure']);
             $risk->fill(collect($data)->except(['control_ids', 'note', 'plan_title', 'plan_due', 'plan_pic_id', 'from_incident', 'quarter_targets'])->all());
+            // target residual triwulanan adalah bagian dari penilaian: perubahannya ikut hak changeScore, versi, persetujuan, dan audit
+            $prevTargets = $this->quarterTargetState($risk);
+            $targetsChanged = array_key_exists('quarter_targets', $data) && $this->normalizeTargets($data['quarter_targets'] ?? []) !== $prevTargets;
             // perubahan eksposur (kuantifikasi) diperlakukan sama dengan perubahan skor: versi baru + persetujuan
-            $scoreChanged = $risk->isDirty($scoreFields) || $risk->isDirty(['inherent_dims', 'residual_dims', 'inherent_exposure', 'residual_exposure', 'target_exposure']);
+            $scoreChanged = $risk->isDirty($scoreFields) || $risk->isDirty(['inherent_dims', 'residual_dims', 'inherent_exposure', 'residual_exposure', 'target_exposure']) || $targetsChanged;
             if ($scoreChanged) {
                 $this->authorize('changeScore', $risk);
                 $risk->previous_score = $prevScore;
@@ -303,11 +324,14 @@ class RiskController extends Controller
             $risk->save();
             $risk->controls()->sync($data['control_ids'] ?? []);
             $this->syncQuarterTargets($risk, $data);
+            if ($targetsChanged) {
+                AuditLog::record('updated', $risk, ['quarter_targets' => [$prevTargets, $this->quarterTargetState($risk)]], 'risks.quarter_targets');
+            }
             if ($scoreChanged) {
                 $this->snapshotVersion($risk, $data['note'] ?? null);
                 app(AlertService::class)->checkScoreChange($risk, $prevScore);
                 if ($risk->status !== 'draft') {
-                    app(ApprovalService::class)->submit($risk, 'score_change', $request->user(), $data['note'] ?? "Perubahan skor residual {$prevScore} → {$risk->residual_score}", ['restore' => $restore]);
+                    app(ApprovalService::class)->submit($risk, 'score_change', $request->user(), $data['note'] ?? "Perubahan skor residual {$prevScore} → {$risk->residual_score}", ['restore' => $restore, 'restore_targets' => $prevTargets]);
                 }
             }
         });
