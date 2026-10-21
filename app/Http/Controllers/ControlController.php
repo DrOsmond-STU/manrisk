@@ -52,11 +52,12 @@ class ControlController extends Controller
         ]);
     }
 
-    /** Kontrol yang terlihat oleh pengguna bercakupan unit: tanpa unit, unitnya dalam cakupan, atau mengendalikan risiko dalam cakupan. */
+    /** Kontrol yang terlihat oleh pengguna bercakupan unit (sama dengan ControlPolicy::view): unitnya dalam cakupan, mengendalikan risiko dalam cakupan, atau tanpa unit dan tidak terkait risiko di luar cakupan. */
     private function scoped()
     {
         $ids = request()->user()->accessibleUnitIds();
-        return Control::query()->when($ids !== null, fn ($q) => $q->where(fn ($w) => $w->whereNull('unit_id')->orWhereIn('unit_id', $ids)->orWhereHas('risks', fn ($r) => $r->whereIn('unit_id', $ids))));
+        return Control::query()->when($ids !== null, fn ($q) => $q->where(fn ($w) => $w->whereIn('unit_id', $ids)->orWhereHas('risks', fn ($r) => $r->whereIn('unit_id', $ids))
+            ->orWhere(fn ($x) => $x->whereNull('unit_id')->whereDoesntHave('risks', fn ($r) => $r->whereNotIn('unit_id', $ids)))));
     }
 
     public function show(Control $control)
