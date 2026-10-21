@@ -2,6 +2,8 @@
 import { computed, ref, watch, onMounted } from 'vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { fmt, toast } from '../lib/format';
+import { aiModule } from '../lib/md';
+import AiAssist from '../Components/AiAssist.vue';
 
 const page = usePage();
 const user = computed(() => page.props.auth?.user);
@@ -10,22 +12,24 @@ const navOpen = ref(false);
 const menuOpen = ref(false);
 const q = ref('');
 
+const AI_ROLES = ['super_admin', 'risk_admin', 'risk_manager', 'risk_officer', 'risk_owner', 'management', 'board'];
 const NAV = [
   { g: 'Dashboard', items: [['dashboard.executive', '/dashboard/executive', 'Executive Dashboard', 'grid', ['super_admin', 'risk_admin', 'risk_manager', 'management', 'board', 'auditor']], ['dashboard', '/dashboard', 'Risk Dashboard', 'pulse'], ['kris.index', '/kris', 'KRI & Early Warning', 'gauge'], ['alerts.index', '/alerts', 'Peringatan', 'bell']] },
   { g: 'Manajemen Risiko', items: [['context.index', '/context', 'Konteks & Konsultasi', 'compass'], ['criteria.index', '/criteria', 'Kriteria & Taksonomi', 'layers'], ['risks.index', '/risks', 'Risk Register', 'list'], ['risks.matrix', '/risks/matrix', 'Peta Risiko (Matriks)', 'target'], ['risks.evaluation', '/risks/evaluation', 'Evaluasi Risiko', 'scale'], ['risks.residual', '/risks/residual', 'Monitoring Residual', 'repeat'], ['reviews.index', '/reviews', 'Risk Review', 'refresh']] },
   { g: 'Penanganan & Kontrol', items: [['action-plans.index', '/action-plans', 'Mitigasi & Action Plan', 'tasks'], ['controls.index', '/controls', 'Kontrol & Efektivitas', 'shield'], ['improvements.index', '/improvements', 'Perbaikan Berkelanjutan', 'up']] },
   { g: 'Pemantauan', items: [['incidents.index', '/incidents', 'Insiden', 'alert'], ['losses.index', '/incidents/losses', 'Loss Event Database', 'bolt']] },
   { g: 'Tata Kelola', items: [['objectives.index', '/organization/objectives', 'Pemetaan Sasaran', 'flag'], ['units.index', '/organization/units', 'Struktur Organisasi', 'users'], ['framework.index', '/framework', 'Kerangka ISO 31000', 'book'], ['rmi.index', '/rmi', 'Risk Maturity Index', 'gauge'], ['approvals.index', '/approvals', 'Persetujuan', 'inbox']] },
-  { g: 'Pelaporan & Dokumen', items: [['reports.index', '/reports', 'Laporan', 'file'], ['documents.index', '/documents', 'Dokumen & Bukti', 'folder'], ['ai.index', '/ai', 'AI Risk Assistant', 'spark', ['super_admin', 'risk_admin', 'risk_manager', 'risk_officer', 'risk_owner', 'management']]] },
+  { g: 'Pelaporan & Dokumen', items: [['reports.index', '/reports', 'Laporan', 'file'], ['documents.index', '/documents', 'Dokumen & Bukti', 'folder'], ['ai.index', '/ai', 'AI Risk Assistant', 'spark', AI_ROLES], ['ai.analytics', '/ai/analytics', 'AI Analitik', 'chart', AI_ROLES]] },
   { g: 'Administrasi', items: [['users.index', '/admin/users', 'Pengguna & Akun', 'key', ['super_admin']], ['audit.index', '/admin/audit', 'Audit Trail', 'clock', ['super_admin', 'risk_admin', 'board', 'risk_manager', 'auditor']], ['settings.organization', '/settings/organization', 'Pengaturan Organisasi', 'lock', ['super_admin', 'risk_admin']], ['settings.mail', '/admin/mail', 'Email & SMTP', 'send', ['super_admin']]] },
 ];
 const allowed = (it) => !it[4] || it[4].includes(user.value?.role);
 const current = computed(() => page.url.split('?')[0]);
-const isOn = (href) => current.value === href || (href !== '/dashboard' && href !== '/risks' && current.value.startsWith(href + '/')) || (href === '/risks' && /^\/risks\/(\d+|create)/.test(current.value));
+const isOn = (href) => current.value === href || (href !== '/dashboard' && href !== '/risks' && href !== '/ai' && current.value.startsWith(href + '/')) || (href === '/risks' && /^\/risks\/(\d+|create)/.test(current.value));
 const badgeFor = (name) => (name === 'approvals.index' ? badges.value.approvals : name === 'alerts.index' ? badges.value.alerts : 0);
 
 const toggleTheme = () => { const r = document.documentElement; const cur = r.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); r.dataset.theme = cur === 'dark' ? 'light' : 'dark'; try { localStorage.setItem('mr-theme', r.dataset.theme); } catch (e) { /* */ } };
 const logout = () => router.post('/logout');
+const openAi = () => window.dispatchEvent(new Event('mr:ai-open'));
 const search = () => { if (q.value.trim()) router.get('/risks', { q: q.value.trim() }); };
 watch(() => page.props.flash, (f) => { if (f?.success) toast(f.success, 'ok'); if (f?.error) toast(f.error, 'bad'); if (f?.warning) toast(f.warning, 'warn'); }, { deep: true, immediate: true });
 router.on('navigate', () => { navOpen.value = false; menuOpen.value = false; });
@@ -51,11 +55,15 @@ router.on('navigate', () => { navOpen.value = false; menuOpen.value = false; });
         <div class="top-ctx">
           <button class="icon-btn c-indigo" aria-label="Ganti tema terang/gelap" @click="toggleTheme"><Icon name="moon" /></button>
           <Link class="icon-btn c-orange" :href="badges.alerts ? '/alerts?unread=1' : '/alerts'" aria-label="Peringatan dini"><Icon name="bell" /><span v-if="badges.alerts" class="dot">{{ badges.alerts }}</span></Link>
-          <Link v-if="user?.role !== 'auditor'" class="icon-btn c-violet" href="/ai" aria-label="AI Risk Assistant"><Icon name="spark" /></Link>
+          <template v-if="user?.role !== 'auditor'">
+            <button v-if="aiModule(page.url)" type="button" class="icon-btn c-violet" aria-label="AI Assistant halaman ini" title="AI Assistant halaman ini" @click="openAi"><Icon name="spark" /></button>
+            <Link v-else class="icon-btn c-violet" href="/ai" aria-label="AI Risk Assistant"><Icon name="spark" /></Link>
+          </template>
           <button type="button" class="user u-btn" aria-haspopup="menu" :aria-expanded="menuOpen" @click="menuOpen = !menuOpen"><span class="avatar">{{ fmt.initials(user?.name) }}</span><span class="u-txt"><b>{{ user?.name }}</b><br><span class="muted">{{ user?.role_label }}</span></span></button>
         </div>
       </header>
       <main class="content" id="view" tabindex="-1"><slot /></main>
+      <AiAssist />
     </div>
     <div v-if="navOpen" class="scrim clear" @click="navOpen = false"></div>
     <div v-if="menuOpen">

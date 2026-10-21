@@ -40,6 +40,9 @@ class RouteMatrixTest extends TestCase
 
     private int $kksScope = 0;
 
+    /** AI Assistant dan dashboard AI Analitik pribadi: tidak mengubah data manajemen risiko, terbuka bagi pimpinan baca-saja. */
+    private const AI_PERSONAL = ['ai.assist', 'ai.analytics.plan', 'ai.analytics.run', 'ai.dashboards.store', 'ai.dashboards.update', 'ai.dashboards.destroy'];
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -117,8 +120,8 @@ class RouteMatrixTest extends TestCase
     {
         $allowed = [
             'auditor' => ['logout', 'logout.others', 'password.update', 'profile.update', 'mfa.send', 'mfa.enable', 'mfa.disable', 'mfa.recovery', 'mfa.devices', 'alerts.read', 'alerts.read-all', 'reports.generate'],
-            'management' => ['logout', 'logout.others', 'password.update', 'profile.update', 'mfa.send', 'mfa.enable', 'mfa.disable', 'mfa.recovery', 'mfa.devices', 'alerts.read', 'alerts.read-all', 'reports.generate', 'reports.schedules.store', 'approvals.decide', 'ai.run'],
-            'board' => ['logout', 'logout.others', 'password.update', 'profile.update', 'mfa.send', 'mfa.enable', 'mfa.disable', 'mfa.recovery', 'mfa.devices', 'alerts.read', 'alerts.read-all', 'reports.generate', 'reports.schedules.store', 'approvals.decide', 'ai.run'],
+            'management' => ['logout', 'logout.others', 'password.update', 'profile.update', 'mfa.send', 'mfa.enable', 'mfa.disable', 'mfa.recovery', 'mfa.devices', 'alerts.read', 'alerts.read-all', 'reports.generate', 'reports.schedules.store', 'approvals.decide', 'ai.run', ...self::AI_PERSONAL],
+            'board' => ['logout', 'logout.others', 'password.update', 'profile.update', 'mfa.send', 'mfa.enable', 'mfa.disable', 'mfa.recovery', 'mfa.devices', 'alerts.read', 'alerts.read-all', 'reports.generate', 'reports.schedules.store', 'approvals.decide', 'ai.run', ...self::AI_PERSONAL],
         ];
         $failures = [];
         foreach ($allowed as $role => $ok) {

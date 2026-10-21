@@ -14,7 +14,8 @@ Spesifikasi lengkap: [`docs/SPESIFIKASI-PENGEMBANGAN.md`](docs/SPESIFIKASI-PENGE
 | Penanganan & kontrol | Action plan (progres, kanban, pembatalan, proyeksi skor), Kontrol & efektivitas (pengujian desain/operasi), Continual improvement & lesson learned |
 | Pemantauan | Insiden (otomatis ke loss database & peringatan), Loss event database |
 | Tata kelola | Pemetaan sasaran/program/proses, Struktur organisasi (hierarki unit), Kerangka ISO 31000 (self-assessment), Persetujuan berjenjang (Risk Owner → Risk Manager → Management, SLA) |
-| Pelaporan | Laporan PDF/Excel (register, eksekutif, action plan, kontrol, KRI, insiden), Dokumen & bukti (upload aman), AI Risk Assistant |
+| Pelaporan | Laporan PDF/Excel (register, eksekutif, action plan, kontrol, KRI, insiden), Dokumen & bukti (upload aman), AI Risk Assistant, AI Analitik (dashboard sesuai permintaan, dapat disimpan & dibagikan) |
+| AI di setiap fitur | Panel **Asisten AI** kontekstual di semua halaman: aksi cepat per fitur dan tanya-jawab atas data halaman, dibatasi hak akses pengguna |
 | Administrasi | Pengguna & akun (7 peran, cakupan unit), Audit trail append-only, log autentikasi, pengaturan organisasi |
 
 ## Keamanan
