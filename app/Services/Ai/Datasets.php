@@ -87,7 +87,8 @@ class Datasets
     public function controls(): Builder
     {
         $ids = $this->user->accessibleUnitIds();
-        return Control::query()->when($ids !== null, fn ($q) => $q->where(fn ($w) => $w->whereNull('unit_id')->orWhereIn('unit_id', $ids)->orWhereHas('risks', fn ($r) => $r->whereIn('unit_id', $ids))));
+        return Control::query()->when($ids !== null, fn ($q) => $q->where(fn ($w) => $w->whereIn('unit_id', $ids)->orWhereHas('risks', fn ($r) => $r->whereIn('unit_id', $ids))
+            ->orWhere(fn ($x) => $x->whereNull('unit_id')->whereDoesntHave('risks', fn ($r) => $r->whereNotIn('unit_id', $ids)))));
     }
 
     public function losses(): Builder

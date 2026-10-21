@@ -156,6 +156,17 @@ class RouteMatrixTest extends TestCase
         $o()->get("/incidents/{$incB->id}")->assertForbidden();
         $o()->put("/incidents/{$incB->id}", ['title' => 'x', 'occurred_at' => now()->format('Y-m-d H:i'), 'status' => 'reported'])->assertForbidden();
         $o()->get("/controls/{$ctlB->id}")->assertForbidden();
+        // kontrol unit lain yang mengendalikan risiko unit sendiri tampil di daftar dan dapat dibuka (baca saja)
+        $ctlLinked = Control::withoutGlobalScopes()->create(['organization_id' => $this->org->id, 'code' => 'C-L', 'name' => 'Lintas', 'frequency' => 'monthly', 'type' => 'preventive', 'mode' => 'manual', 'unit_id' => $this->unitB->id]);
+        $ctlLinked->risks()->sync([$this->params['risk']]);
+        $ctlOrphan = Control::withoutGlobalScopes()->create(['organization_id' => $this->org->id, 'code' => 'C-O', 'name' => 'Tanpa unit', 'frequency' => 'monthly', 'type' => 'preventive', 'mode' => 'manual']);
+        $ctlOrphan->risks()->sync([$riskB->id]);
+        $o()->get("/controls/{$ctlLinked->id}")->assertOk();
+        $o()->put("/controls/{$ctlLinked->id}", ['name' => 'x', 'frequency' => 'monthly', 'type' => 'preventive', 'mode' => 'manual'])->assertForbidden();
+        $o()->get("/controls/{$ctlOrphan->id}")->assertForbidden();
+        $o()->get('/controls')->assertInertia(fn ($p) => $p->where('controls.data', fn ($d) => collect($d)->pluck('code')->contains('C-L') && !collect($d)->pluck('code')->contains('C-O') && !collect($d)->pluck('code')->contains('C-B')));
+        $o()->postJson('/ai/assist', ['module' => 'control', 'id' => $ctlLinked->id, 'action' => 'assess'])->assertOk();
+        $o()->postJson('/ai/assist', ['module' => 'control', 'id' => $ctlOrphan->id, 'action' => 'assess'])->assertForbidden();
         $o()->post('/action-plans', ['risk_id' => $riskB->id, 'title' => 'x', 'priority' => 'low', 'due_date' => now()->addDay()->toDateString()])->assertForbidden();
         $o()->post('/reviews', ['risk_id' => $riskB->id, 'period_type' => 'adhoc', 'period' => 'x', 'decision' => 'continue'])->assertForbidden();
         $o()->postJson('/ai', ['feature' => 'explain_score', 'risk_id' => $riskB->id])->assertForbidden();
