@@ -745,6 +745,22 @@ Ketentuan: laporan dibuat **asinkron** (job) dengan notifikasi saat siap; kop/lo
 - **Biaya & kuota**: batas permintaan per pengguna/hari; pencatatan token dan biaya di `ai_interactions`; cache hasil ringkasan dashboard 15 menit.
 - **Mode tanpa AI**: fitur AI dapat dimatikan per organisasi; aplikasi tetap lengkap tanpa AI.
 
+### 14.3 AI Assistant kontekstual di setiap fitur — **sudah diterapkan**
+
+- Tombol **Asisten AI** tampil di setiap halaman fitur (33 konteks: dashboard, register, detail risiko, formulir, peta, evaluasi, residual, review, konteks/KKS, kriteria, action plan, kontrol, perbaikan, insiden, loss event, KRI, peringatan, sasaran, unit, kerangka ISO, RMI, persetujuan, laporan, dokumen, audit trail, pengguna, pengaturan).
+- Setiap halaman punya **aksi cepat** sendiri (mis. detail risiko: jelaskan skor, usulkan kontrol, rekomendasi treatment, usulkan KRI; action plan: tindak lanjut terlambat, anggaran vs realisasi) dan **pertanyaan bebas** dengan riwayat percakapan (maks. 6 giliran).
+- **Snapshot halaman** (`App\Services\Ai\AssistantService`) disusun dari query bercakupan yang sama dengan halaman modul (unit/sub-unit untuk Risk Officer/Owner, objek detail lewat policy `view`), tanpa nama orang; kode objek pada jawaban ditautkan ke halamannya.
+- Tanpa kunci API, jawaban disusun aturan atas snapshot yang sama (data utama, temuan, daftar prioritas, rekomendasi). Kuota harian, log `ai_interactions` (`assist:<modul>`), dan batas 20 permintaan/menit berlaku. Auditor tidak memakai AI; audit trail, pengguna, dan pengaturan mengikuti peran halamannya.
+- Endpoint: `GET /ai/assist?module=` (aksi cepat), `POST /ai/assist` (`module`, `id`, `action` atau `question`, `history`).
+
+### 14.4 AI Analitik (dashboard sesuai permintaan) — **sudah diterapkan**
+
+- Menu **AI Analitik** (`/ai/analytics`): pengguna menulis kebutuhan ("jumlah risiko per unit dan level", "tren insiden 12 bulan terakhir", "10 risiko dengan skor tertinggi"); aplikasi menyusun dashboard KPI, grafik batang/horizontal/garis/donat, dan tabel, lengkap dengan wawasan singkat per widget dan ringkasan.
+- **Keamanan data**: model AI hanya menerima *skema* dataset (nama dataset, dimensi, ukuran, tanggal), bukan isi data. Spesifikasi dari AI divalidasi terhadap daftar putih (`App\Services\Ai\Datasets`) lalu dihitung `AnalyticsEngine` atas data dalam cakupan pengguna; tidak ada SQL/ekspresi dari AI yang dijalankan. Tanpa kunci API dipakai pengurai kata kunci Bahasa Indonesia (`AnalyticsPlanner`).
+- Dataset: risiko, action plan, KRI, insiden, kontrol, loss event, perbaikan, review, persetujuan, riwayat skor bulanan. Dimensi berjenjang (level, status KRI) diurut dan diwarnai menurut tingkat keparahan.
+- Widget dapat diubah jenis grafiknya, digeser, dihapus, ditambah lewat permintaan lanjutan, diunduh CSV. Dashboard **disimpan** (`ai_dashboards`: hanya spesifikasi) dan dapat **dibagikan** ke organisasi; data selalu dihitung ulang menurut hak akses penampil. Hanya pembuat yang dapat mengubah/menghapus (Super Admin dapat menghapus).
+- Endpoint: `POST /ai/analytics/plan` (memakai kuota), `POST /ai/analytics/run` (hitung ulang, tanpa kuota), `POST/PUT/DELETE /ai/dashboards`.
+
 ---
 
 ## 15. Integrasi sistem eksternal

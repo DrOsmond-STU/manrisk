@@ -180,6 +180,15 @@ Route::middleware(['auth', 'session.policy', 'password.fresh', 'throttle:app'])-
     Route::delete('/reports/schedules/{schedule}', [ReportController::class, 'destroySchedule'])->name('reports.schedules.destroy');
     Route::get('/ai', [AiController::class, 'index'])->name('ai.index');
     Route::post('/ai', [AiController::class, 'run'])->middleware('throttle:20,1')->name('ai.run');
+    // AI Assistant kontekstual di setiap halaman dan AI Analitik (dashboard sesuai permintaan)
+    Route::get('/ai/assist', [\App\Http\Controllers\AiAssistController::class, 'info'])->name('ai.assist.info');
+    Route::post('/ai/assist', [\App\Http\Controllers\AiAssistController::class, 'ask'])->middleware('throttle:20,1')->name('ai.assist');
+    Route::get('/ai/analytics', [\App\Http\Controllers\AiAnalyticsController::class, 'index'])->name('ai.analytics');
+    Route::post('/ai/analytics/plan', [\App\Http\Controllers\AiAnalyticsController::class, 'plan'])->middleware('throttle:20,1')->name('ai.analytics.plan');
+    Route::post('/ai/analytics/run', [\App\Http\Controllers\AiAnalyticsController::class, 'run'])->middleware('throttle:60,1')->name('ai.analytics.run');
+    Route::post('/ai/dashboards', [\App\Http\Controllers\AiAnalyticsController::class, 'store'])->name('ai.dashboards.store');
+    Route::put('/ai/dashboards/{dashboard}', [\App\Http\Controllers\AiAnalyticsController::class, 'update'])->name('ai.dashboards.update');
+    Route::delete('/ai/dashboards/{dashboard}', [\App\Http\Controllers\AiAnalyticsController::class, 'destroy'])->name('ai.dashboards.destroy');
 
     // Pengaturan
     Route::get('/profile', [SettingsController::class, 'profile'])->name('profile');
