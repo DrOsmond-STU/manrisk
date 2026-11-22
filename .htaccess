@@ -17,6 +17,9 @@ DirectoryIndex index.html
 </IfModule>
 
 <IfModule mod_headers.c>
+  <FilesMatch "\.(html|xml|txt)$">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
   Header always set X-Content-Type-Options "nosniff"
   Header always set Referrer-Policy "strict-origin-when-cross-origin"
   Header always set X-Frame-Options "SAMEORIGIN"
@@ -27,7 +30,8 @@ AddType image/svg+xml .svg
 
 <IfModule mod_expires.c>
   ExpiresActive On
-  ExpiresByType text/html "access plus 1 hour"
+  # HTML selalu dicek ulang ke server agar pembaruan langsung terlihat
+  ExpiresByType text/html "access plus 0 seconds"
   ExpiresByType image/webp "access plus 30 days"
   ExpiresByType image/png "access plus 30 days"
   ExpiresByType image/svg+xml "access plus 30 days"
