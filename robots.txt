@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://manajemenrisiko.semestateknologiutama.com/sitemap.xml
