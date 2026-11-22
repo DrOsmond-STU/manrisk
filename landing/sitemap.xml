@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+  <url>
+    <loc>https://manajemenrisiko.semestateknologiutama.com/</loc>
+    <lastmod>2026-11-22</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>1.0</priority>
+    <image:image><image:loc>https://manajemenrisiko.semestateknologiutama.com/assets/img/dashboard.webp</image:loc><image:title>Risk Dashboard aplikasi manajemen risiko ManRisk ERM</image:title></image:image>
+    <image:image><image:loc>https://manajemenrisiko.semestateknologiutama.com/assets/img/register.webp</image:loc><image:title>Risk Register aplikasi manajemen risiko</image:title></image:image>
+    <image:image><image:loc>https://manajemenrisiko.semestateknologiutama.com/assets/img/matrix.webp</image:loc><image:title>Peta risiko 5x5 (heat map) ISO 31000</image:title></image:image>
+    <image:image><image:loc>https://manajemenrisiko.semestateknologiutama.com/assets/img/kri.webp</image:loc><image:title>Key Risk Indicator dan early warning</image:title></image:image>
+    <image:image><image:loc>https://manajemenrisiko.semestateknologiutama.com/assets/img/executive.webp</image:loc><image:title>Executive Dashboard manajemen risiko</image:title></image:image>
+  </url>
+</urlset>
