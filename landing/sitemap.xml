@@ -6,9 +6,11 @@
     <changefreq>monthly</changefreq>
     <priority>1.0</priority>
     <image:image><image:loc>https://manajemenrisiko.semestateknologiutama.com/assets/img/dashboard.webp</image:loc><image:title>Risk Dashboard aplikasi manajemen risiko ManRisk ERM</image:title></image:image>
+    <image:image><image:loc>https://manajemenrisiko.semestateknologiutama.com/assets/img/exposure-limit.webp</image:loc><image:title>Eksposur risiko vs risk limit taksonomi T1-T3 PER-2/MBU/03/2023</image:title></image:image>
+    <image:image><image:loc>https://manajemenrisiko.semestateknologiutama.com/assets/img/rmi.webp</image:loc><image:title>Risk Maturity Index (RMI) BUMN</image:title></image:image>
+    <image:image><image:loc>https://manajemenrisiko.semestateknologiutama.com/assets/img/kks.webp</image:loc><image:title>Kajian risiko Kegiatan Korporasi Signifikan (KKS)</image:title></image:image>
+    <image:image><image:loc>https://manajemenrisiko.semestateknologiutama.com/assets/img/taxonomy.webp</image:loc><image:title>Taksonomi risiko T1-T3 BUMN</image:title></image:image>
     <image:image><image:loc>https://manajemenrisiko.semestateknologiutama.com/assets/img/register.webp</image:loc><image:title>Risk Register aplikasi manajemen risiko</image:title></image:image>
-    <image:image><image:loc>https://manajemenrisiko.semestateknologiutama.com/assets/img/matrix.webp</image:loc><image:title>Peta risiko 5x5 (heat map) ISO 31000</image:title></image:image>
-    <image:image><image:loc>https://manajemenrisiko.semestateknologiutama.com/assets/img/kri.webp</image:loc><image:title>Key Risk Indicator dan early warning</image:title></image:image>
-    <image:image><image:loc>https://manajemenrisiko.semestateknologiutama.com/assets/img/executive.webp</image:loc><image:title>Executive Dashboard manajemen risiko</image:title></image:image>
+    <image:image><image:loc>https://manajemenrisiko.semestateknologiutama.com/assets/img/matrix.webp</image:loc><image:title>Matriks risiko 5x5 ISO 31000</image:title></image:image>
   </url>
 </urlset>
