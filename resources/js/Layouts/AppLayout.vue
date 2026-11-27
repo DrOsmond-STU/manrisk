@@ -25,6 +25,12 @@ const NAV = [
 const allowed = (it) => !it[4] || it[4].includes(user.value?.role);
 const current = computed(() => page.url.split('?')[0]);
 const isOn = (href) => current.value === href || (href !== '/dashboard' && href !== '/risks' && href !== '/ai' && current.value.startsWith(href + '/')) || (href === '/risks' && /^\/risks\/(\d+|create)/.test(current.value));
+const crumb = computed(() => {
+  for (const g of NAV) for (const it of g.items) if (isOn(it[1])) return { group: g.g, label: it[2] };
+  if (current.value.startsWith('/profile')) return { group: 'Akun', label: 'Profil & preferensi' };
+  if (current.value.startsWith('/password')) return { group: 'Akun', label: 'Ganti kata sandi' };
+  return { group: 'ManRisk', label: 'Halaman' };
+});
 const badgeFor = (name) => (name === 'approvals.index' ? badges.value.approvals : name === 'alerts.index' ? badges.value.alerts : 0);
 
 const toggleTheme = () => { const r = document.documentElement; const cur = r.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); r.dataset.theme = cur === 'dark' ? 'light' : 'dark'; try { localStorage.setItem('mr-theme', r.dataset.theme); } catch (e) { /* */ } };
@@ -42,7 +48,7 @@ router.on('navigate', () => { navOpen.value = false; menuOpen.value = false; });
         <div v-for="g in NAV" :key="g.g" class="nav-g" v-show="g.items.some(allowed)">
           <span>{{ g.g }}</span>
           <template v-for="it in g.items" :key="it[0]">
-            <Link v-if="allowed(it)" :href="it[1]" :class="{ on: isOn(it[1]) }" :aria-current="isOn(it[1]) ? 'page' : null"><Icon :name="it[3]" />{{ it[2] }}<span v-if="badgeFor(it[0])" class="cnt">{{ badgeFor(it[0]) }}</span></Link>
+            <Link v-if="allowed(it)" :href="it[1]" :class="{ on: isOn(it[1]) }" :aria-current="isOn(it[1]) ? 'page' : null"><span class="nav-ic"><Icon :name="it[3]" /></span>{{ it[2] }}<span v-if="badgeFor(it[0])" class="cnt">{{ badgeFor(it[0]) }}</span></Link>
           </template>
         </div>
       </nav>
@@ -51,6 +57,7 @@ router.on('navigate', () => { navOpen.value = false; menuOpen.value = false; });
     <div class="main">
       <header class="top">
         <button class="icon-btn menu-btn c-indigo" aria-label="Buka menu" @click="navOpen = !navOpen"><Icon name="menu" /></button>
+        <nav class="crumbs" aria-label="Breadcrumb"><ol><li>{{ crumb.group }}</li><li aria-current="page">{{ crumb.label }}</li></ol><h6>{{ crumb.label }}</h6></nav>
         <form class="search" role="search" @submit.prevent="search"><span class="muted"><Icon name="search" /></span><input v-model="q" type="search" placeholder="Cari risiko (kode/nama)…" aria-label="Pencarian risiko"></form>
         <div class="top-ctx">
           <button class="icon-btn c-indigo" aria-label="Ganti tema terang/gelap" @click="toggleTheme"><Icon name="moon" /></button>
