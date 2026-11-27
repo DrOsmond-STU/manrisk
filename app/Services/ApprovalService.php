@@ -170,6 +170,16 @@ class ApprovalService
         $payload = $approval->payload ?? [];
         if ($approval->type === 'score_change' && !empty($payload['restore'])) {
             $subject->forceFill($payload['restore']);
+            if (array_key_exists('restore_targets', $payload)) {
+                // kembalikan target residual triwulanan ke nilai sebelum pengajuan
+                $year = (int) $approval->created_at->year;
+                \App\Models\RiskQuarterTarget::where('risk_id', $subject->id)->where('year', $year)->delete();
+                $scoring = app(\App\Support\Scoring::class);
+                foreach ($payload['restore_targets'] as $t) {
+                    \App\Models\RiskQuarterTarget::create(['risk_id' => $subject->id, 'year' => $year, 'quarter' => $t['quarter'], 'target_l' => $t['target_l'], 'target_i' => $t['target_i'],
+                        'target_score' => $scoring->score($t['target_l'], $t['target_i']), 'target_exposure' => $t['target_exposure']]);
+                }
+            }
             app(\App\Support\Scoring::class)->apply($subject, $subject->category);
             $subject->versions()->where('version', $subject->version)->whereNull('approved_at')->get()
                 ->each(fn ($v) => $v->update(['note' => trim(($v->note ? $v->note . ' — ' : '') . ($action === 'revise' ? 'Dikembalikan' : 'Ditolak') . ": {$note}")]));

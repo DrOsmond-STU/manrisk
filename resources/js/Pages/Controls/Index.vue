@@ -2,6 +2,7 @@
 import { computed, reactive, ref, watch } from 'vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import PageHead from '../../Components/PageHead.vue';
+import Pagination from '../../Components/Pagination.vue';
 import CrudModal from '../../Components/CrudModal.vue';
 import ConfirmButton from '../../Components/ConfirmButton.vue';
 import Pill from '../../Components/Pill.vue';
@@ -9,7 +10,7 @@ import Kpi from '../../Components/Kpi.vue';
 import Field from '../../Components/Field.vue';
 import Chart from '../../Components/Chart.vue';
 import { fmt } from '../../lib/format';
-const props = defineProps({ controls: Array, filters: Object, filter_risk: Object, stats: Object, users: Array, units: Array, risks: Array, can: Object });
+const props = defineProps({ controls: Object, filters: Object, filter_risk: Object, stats: Object, users: Array, units: Array, risks: Array, can: Object });
 const L = usePage().props.labels;
 const modal = ref(false); const item = ref(null); const assess = ref(null);
 const f = reactive({ q: props.filters.q || '', type: props.filters.type || '', eff: props.filters.eff || '', risk_id: props.filters.risk_id || '' });
@@ -37,8 +38,8 @@ const effTone = (v) => (!v ? '' : v >= 3 ? 'ok' : v === 2 ? 'warn' : 'bad');
     <div class="card" style="grid-column:span 9"><div class="card-b filters"><Field v-model="f.q" label="Cari" placeholder="kode / nama" style="flex:1" /><Field v-model="f.type" type="select" label="Tipe" :options="{ preventive: 'Preventif', detective: 'Detektif', corrective: 'Korektif' }" empty="Semua" /><Field v-model="f.eff" type="select" label="Efektivitas" :options="{ weak: 'Lemah saja' }" empty="Semua" /><Field v-model="f.risk_id" type="select" label="Risiko" :options="risks.map((r) => ({ id: r.id, name: r.code }))" empty="Semua" /></div>
       <div v-if="filter_risk" class="card-b row" style="gap:6px"><span class="pill run">Risiko {{ filter_risk.code }} · {{ filter_risk.name }}</span><Link href="/controls" class="btn sm ghost c-indigo">hapus filter</Link></div>
       <div class="card-b flush tbl-wrap"><table class="tbl"><thead><tr><th>Kode</th><th>Kontrol</th><th>Tipe</th><th>Pemilik</th><th>Desain</th><th>Operasi</th><th>Uji berikut</th><th>Risiko</th><th></th></tr></thead><tbody>
-        <tr v-for="c in controls" :key="c.id" class="click" @click="router.visit(`/controls/${c.id}`)"><td class="code-link">{{ c.code }}</td><td class="t-main wrap">{{ c.name }}<div class="t-sub">{{ c.frequency }} · {{ c.mode }}</div></td><td><Pill :value="c.type" /></td><td class="t-sub">{{ c.owner?.name }}</td><td><Pill :value="effLabel(c.design_eff)" :tone="effTone(c.design_eff)" /></td><td><Pill :value="effLabel(c.operating_eff)" :tone="effTone(c.operating_eff)" /></td><td :style="c.next_test_at && new Date(c.next_test_at) < new Date() ? 'color:var(--bad-ink);font-weight:600' : ''">{{ fmt.date(c.next_test_at) }}</td><td class="t-sub"><template v-for="(r, n) in c.risks" :key="r.id"><span v-if="n">, </span><Link :href="`/risks/${r.id}`" class="code-link" @click.stop>{{ r.code }}</Link></template><span v-if="!c.risks.length">—</span></td><td @click.stop><span class="row" style="justify-content:flex-end"><button v-if="can.write" type="button" class="btn sm c-blue" @click="open(c)">Ubah</button><ConfirmButton v-if="can.delete" :href="`/controls/${c.id}`" /></span></td></tr>
-        <tr v-if="!controls.length"><td colspan="9"><div class="empty">Tidak ada kontrol.</div></td></tr></tbody></table></div></div>
+        <tr v-for="c in controls.data" :key="c.id" class="click" @click="router.visit(`/controls/${c.id}`)"><td class="code-link">{{ c.code }}</td><td class="t-main wrap">{{ c.name }}<div class="t-sub">{{ c.frequency }} · {{ c.mode }}</div></td><td><Pill :value="c.type" /></td><td class="t-sub">{{ c.owner?.name }}</td><td><Pill :value="effLabel(c.design_eff)" :tone="effTone(c.design_eff)" /></td><td><Pill :value="effLabel(c.operating_eff)" :tone="effTone(c.operating_eff)" /></td><td :style="c.next_test_at && new Date(c.next_test_at) < new Date() ? 'color:var(--bad-ink);font-weight:600' : ''">{{ fmt.date(c.next_test_at) }}</td><td class="t-sub"><template v-for="(r, n) in c.risks" :key="r.id"><span v-if="n">, </span><Link :href="`/risks/${r.id}`" class="code-link" @click.stop>{{ r.code }}</Link></template><span v-if="!c.risks.length">—</span></td><td @click.stop><span class="row" style="justify-content:flex-end"><button v-if="can.write" type="button" class="btn sm c-blue" @click="open(c)">Ubah</button><ConfirmButton v-if="can.delete" :href="`/controls/${c.id}`" /></span></td></tr>
+        <tr v-if="!controls.data.length"><td colspan="9"><div class="empty">Tidak ada kontrol.</div></td></tr></tbody></table></div><Pagination :data="controls" /></div>
     <div class="card" style="grid-column:span 3"><div class="card-h"><h3>Komposisi tipe</h3></div><div class="card-b"><Chart :option="typeOpt" height="220px" /></div></div>
   </div>
   <CrudModal :show="modal" :title="item ? 'Ubah kontrol' : 'Kontrol baru'" :fields="[...fields, { key: 'risk_ids', label: 'Risiko yang dikendalikan', type: 'multi', options: risks }]" :item="item" :url="item ? `/controls/${item.id}` : '/controls'" :method="item ? 'put' : 'post'" wide @close="modal = false" />

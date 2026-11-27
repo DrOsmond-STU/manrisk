@@ -181,7 +181,7 @@ class NewFeaturesTest extends TestCase
         $this->actingAs($this->users['risk_manager']);
         ActionPlan::create(['code' => 'AP-1', 'risk_id' => $risk->id, 'title' => 'Milik officer', 'priority' => 'low', 'due_date' => now()->addDay()->toDateString(), 'pic_id' => $this->users['risk_officer']->id]);
         ActionPlan::create(['code' => 'AP-2', 'risk_id' => $risk->id, 'title' => 'Milik owner', 'priority' => 'low', 'due_date' => now()->addDay()->toDateString(), 'pic_id' => $this->users['risk_owner']->id]);
-        $this->as('risk_officer')->get('/action-plans?mine=1')->assertInertia(fn ($p) => $p->has('plans', 1)->where('plans.0.title', 'Milik officer'));
+        $this->as('risk_officer')->get('/action-plans?mine=1')->assertInertia(fn ($p) => $p->has('plans.data', 1)->where('plans.data.0.title', 'Milik officer'));
     }
 
     public function test_scheduled_report_is_emailed_with_attachment(): void

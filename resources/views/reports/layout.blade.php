@@ -7,7 +7,7 @@
   .meta { color: #526883; font-size: 9px; margin-bottom: 10px; }
   table { width: 100%; border-collapse: collapse; margin-bottom: 8px; } th, td { border: 1px solid #c9d6e6; padding: 4px 5px; vertical-align: top; } th { background: #e3ebf6; text-align: left; font-size: 9px; text-transform: uppercase; }
   td.num, th.num { text-align: right; } .lv { display: inline-block; padding: 1px 6px; border-radius: 3px; color: #fff; font-size: 9px; }
-  .low { background: #0ca30c; } .medium { background: #d99a00; } .high { background: #ec835a; } .very_high { background: #d03b3b; }
+  .low { background: #0ca30c; } .low_medium { background: #8cbf26; } .medium { background: #d99a00; } .high { background: #ec835a; } .very_high { background: #d03b3b; }
   .kpis { width: 100%; margin-bottom: 8px; } .kpis td { border: 1px solid #c9d6e6; text-align: center; padding: 6px; } .kpis b { font-size: 16px; display: block; }
   .foot { position: fixed; bottom: -8mm; left: 0; right: 0; font-size: 8px; color: #526883; text-align: center; }
   .brand { color: #0b4da2; font-weight: bold; }

@@ -2,7 +2,11 @@
 import { ref } from 'vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import PageHead from '../../Components/PageHead.vue';
+import LocalPager from '../../Components/LocalPager.vue';
+import { usePager } from '../../lib/pager';
 const props = defineProps({ type: String, columns: Object, max: Number, preview: Object });
+const pgErr = usePager(() => props.preview?.errors || [], 20);
+const pgOk = usePager(() => props.preview?.valid || [], 20);
 const form = useForm({ file: null });
 const label = props.type === 'kri' ? 'nilai KRI' : 'risiko';
 const upload = () => form.post(`/import/${props.type}/preview`, { forceFormData: true });
@@ -26,8 +30,8 @@ const commit = () => router.post(`/import/${props.type}/commit`, { token: props.
       <div v-if="!preview" class="empty">Unggah berkas untuk melihat pratinjau.</div>
       <template v-else>
         <div class="stat-row"><span>Total baris <b>{{ preview.total }}</b></span><span style="color:var(--ok-ink)">Valid <b>{{ preview.valid.length }}</b></span><span style="color:var(--bad-ink)">Galat <b>{{ preview.errors.length }}</b></span></div>
-        <div v-if="preview.errors.length" class="tbl-wrap"><table class="tbl"><thead><tr><th>Baris</th><th>Data</th><th>Kesalahan</th></tr></thead><tbody><tr v-for="e in preview.errors" :key="e.line"><td class="mono">{{ e.line }}</td><td class="t-main">{{ e.name }}</td><td><div v-for="(m, i) in e.errors" :key="i" class="err-msg">• {{ m }}</div></td></tr></tbody></table></div>
-        <div v-if="preview.valid.length" class="tbl-wrap"><table class="tbl"><thead><tr><th>Baris</th><th>Akan disimpan</th><th>Rincian</th></tr></thead><tbody><tr v-for="v in preview.valid" :key="v.line"><td class="mono">{{ v.line }}</td><td class="t-main">{{ v.name }}</td><td class="t-sub">{{ Object.values(v.preview).join(' · ') }}</td></tr></tbody></table></div>
+        <div v-if="preview.errors.length" class="tbl-wrap"><table class="tbl"><thead><tr><th>Baris</th><th>Data</th><th>Kesalahan</th></tr></thead><tbody><tr v-for="e in pgErr.items" :key="e.line"><td class="mono">{{ e.line }}</td><td class="t-main">{{ e.name }}</td><td><div v-for="(m, i) in e.errors" :key="i" class="err-msg">• {{ m }}</div></td></tr></tbody></table></div><LocalPager :p="pgErr" />
+        <div v-if="preview.valid.length" class="tbl-wrap"><table class="tbl"><thead><tr><th>Baris</th><th>Akan disimpan</th><th>Rincian</th></tr></thead><tbody><tr v-for="v in pgOk.items" :key="v.line"><td class="mono">{{ v.line }}</td><td class="t-main">{{ v.name }}</td><td class="t-sub">{{ Object.values(v.preview).join(' · ') }}</td></tr></tbody></table></div><LocalPager :p="pgOk" />
         <button type="button" class="btn c-green" :disabled="!preview.valid.length || saving" @click="commit"><Icon name="send" />{{ saving ? 'Menyimpan…' : `Simpan ${preview.valid.length} baris valid` }}</button>
         <span class="hint">{{ type === 'kri' ? 'Setelah disimpan Anda diarahkan ke daftar KRI; status dan peringatan diperbarui otomatis.' : 'Setelah disimpan Anda diarahkan ke Risk Register yang menampilkan risiko hasil impor ini.' }}</span>
       </template>

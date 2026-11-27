@@ -12,6 +12,8 @@ class RiskPolicy extends BasePolicy
         return $user->hasRole('super_admin', 'risk_admin', 'risk_manager', 'risk_officer') && $this->inScope($user, $risk);
     }
 
+    protected array $stateful = ['submit', 'close'];
+
     public function submit(User $user, Risk $risk): bool
     {
         return $this->update($user, $risk) && in_array($risk->status, ['draft'], true);

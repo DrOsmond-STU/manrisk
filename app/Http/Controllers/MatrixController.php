@@ -33,7 +33,11 @@ class MatrixController extends Controller
         foreach ($risks as $r) {
             $counts[$r->evaluation] = ($counts[$r->evaluation] ?? 0) + 1;
         }
-        return Inertia::render('Risks/Evaluation', $this->scopeProps($f) + ['risks' => $risks, 'counts' => $counts]);
+        // Risk limit dihitung dari seluruh risiko aktif organisasi dalam cakupan pengguna (bukan hanya yang tersaring)
+        $all = $this->scopeUnits(Risk::query())->where('status', '!=', 'closed')->get(['id', 'category_id', 'inherent_exposure', 'residual_exposure', 'target_exposure']);
+        return Inertia::render('Risks/Evaluation', $this->scopeProps($f) + ['risks' => $risks, 'counts' => $counts,
+            'limits' => \App\Support\RiskLimits::usage($all)->filter(fn ($c) => $c['limit'] !== null || $c['exposure'] > 0)->values(),
+            'total' => \App\Support\RiskLimits::total($all, $request->user()->organization?->settings ?? [])]);
     }
 
     /** Monitoring residual: tren per risiko dari snapshot bulanan. */
@@ -60,16 +64,19 @@ class MatrixController extends Controller
         if (!empty($f['unit_id'])) {
             $q->whereIn('unit_id', \App\Models\OrgUnit::find($f['unit_id'])?->descendantIds() ?? [0]);
         }
-        foreach (['category_id', 'objective_id', 'owner_id', 'process_id'] as $k) {
+        foreach (['objective_id', 'owner_id', 'process_id'] as $k) {
             if (!empty($f[$k])) {
                 $q->where($k, $f[$k]);
             }
+        }
+        if (!empty($f['category_id'])) {
+            $q->whereIn('category_id', \App\Models\RiskCategory::find($f['category_id'])?->descendantIds() ?? [0]);
         }
         return [$q, $f];
     }
 
     private function scopeProps(array $f): array
     {
-        return ['filters' => $f, 'units' => $this->unitOptions(true), 'categories' => \App\Models\RiskCategory::orderBy('sort')->get(['id', 'name'])];
+        return ['filters' => $f, 'units' => $this->unitOptions(true), 'categories' => \App\Models\RiskCategory::tree()->map(fn ($c) => ['id' => $c->id, 'name' => str_repeat('— ', $c->depth - 1) . $c->name])->values()];
     }
 }

@@ -12,12 +12,23 @@ use App\Models\RiskCategory;
  */
 class Scoring
 {
+    /** Label skema standar (4 level); kunci tetap dipakai untuk kompatibilitas. */
     public const LEVELS = ['low' => 'Rendah', 'medium' => 'Sedang', 'high' => 'Tinggi', 'very_high' => 'Sangat Tinggi'];
     public const EVALUATIONS = ['acceptable' => 'Dapat Diterima', 'monitor' => 'Dipantau', 'treat' => 'Perlu Penanganan', 'escalate' => 'Perlu Eskalasi', 'critical' => 'Kritis'];
-    public const LEVEL_ORDER = ['low' => 0, 'medium' => 1, 'high' => 2, 'very_high' => 3];
+    /** Urutan seluruh kunci level dari dua skema (low_medium hanya dipakai skema BUMN). */
+    public const LEVEL_ORDER = ['low' => 0, 'low_medium' => 1, 'medium' => 2, 'high' => 3, 'very_high' => 4];
+    /**
+     * Skema level: standar (4 level) dan BUMN (5 level: Low, Low to Moderate, Moderate, Moderate to High, High)
+     * sesuai peta risiko 5x5 dalam petunjuk teknis manajemen risiko BUMN (PER-2/MBU/03/2023).
+     */
+    public const SCHEMES = [
+        'standard' => ['label' => 'Standar (4 level)', 'levels' => self::LEVELS],
+        'bumn' => ['label' => 'BUMN — PER-2/MBU/03/2023 (5 level)', 'levels' => ['low' => 'Low', 'low_medium' => 'Low to Moderate', 'medium' => 'Moderate', 'high' => 'Moderate to High', 'very_high' => 'High']],
+    ];
 
     private ?array $matrix = null;
     private array $thresholds = ['escalate' => 16, 'critical' => 20];
+    private string $scheme = 'standard';
 
     public function __construct(?CriteriaVersion $criteria = null)
     {
@@ -25,23 +36,60 @@ class Scoring
         if ($criteria) {
             $this->matrix = $criteria->matrix ?: null;
             $this->thresholds = array_merge($this->thresholds, $criteria->thresholds ?: []);
+            $this->scheme = isset(self::SCHEMES[$criteria->scheme]) ? $criteria->scheme : 'standard';
         }
     }
 
-    public static function defaultMatrix(): array
+    public static function defaultMatrix(string $scheme = 'standard'): array
     {
         $m = [];
         for ($l = 1; $l <= 5; $l++) {
             for ($i = 1; $i <= 5; $i++) {
-                $m["$l-$i"] = self::levelFromScore($l * $i);
+                $m["$l-$i"] = self::levelFromScore($l * $i, $scheme);
             }
         }
         return $m;
     }
 
-    public static function levelFromScore(int $score): string
+    /** Level bawaan dari skor; dipakai bila matriks belum ditetapkan (dapat diubah di menu Kriteria). */
+    public static function levelFromScore(int $score, string $scheme = 'standard'): string
     {
+        if ($scheme === 'bumn') {
+            return $score >= 20 ? 'very_high' : ($score >= 15 ? 'high' : ($score >= 10 ? 'medium' : ($score >= 5 ? 'low_medium' : 'low')));
+        }
         return $score >= 16 ? 'very_high' : ($score >= 10 ? 'high' : ($score >= 5 ? 'medium' : 'low'));
+    }
+
+    /** Skema kriteria aktif organisasi pengguna saat ini. */
+    public static function currentScheme(): string
+    {
+        return once(function () {
+            $scheme = CriteriaVersion::current()?->scheme;
+            return isset(self::SCHEMES[$scheme]) ? $scheme : 'standard';
+        });
+    }
+
+    /** Label level skema aktif, urut dari terendah. */
+    public static function levels(?string $scheme = null): array
+    {
+        return self::SCHEMES[$scheme ?? self::currentScheme()]['levels'];
+    }
+
+    public function scheme(): string
+    {
+        return $this->scheme;
+    }
+
+    /** Level dari skor menurut kriteria instans ini (matriks bila ada sel yang cocok, selain itu pita skor skema). */
+    public function levelForScore(int $score): string
+    {
+        foreach ($this->matrix ?? [] as $key => $lv) {
+            [$l, $i] = array_map('intval', explode('-', $key));
+            if ($l * $i === $score) {
+                return $lv;
+            }
+        }
+        return self::levelFromScore($score, $this->scheme);
     }
 
     public function score(int $l, int $i): int
@@ -52,7 +100,7 @@ class Scoring
     public function level(int $l, int $i): string
     {
         $key = "$l-$i";
-        return $this->matrix[$key] ?? self::levelFromScore($this->score($l, $i));
+        return $this->matrix[$key] ?? self::levelFromScore($this->score($l, $i), $this->scheme);
     }
 
     /** Status evaluasi residual terhadap appetite/tolerance kategori (urutan cek §5.3). */
@@ -115,6 +163,6 @@ class Scoring
 
     public static function levelLabel(string $level): string
     {
-        return self::LEVELS[$level] ?? $level;
+        return self::levels()[$level] ?? self::SCHEMES['bumn']['levels'][$level] ?? self::LEVELS[$level] ?? $level;
     }
 }

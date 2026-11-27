@@ -50,7 +50,9 @@ class HandleInertiaRequests extends Middleware
             ],
             'labels' => fn () => [
                 'roles' => \App\Models\User::ROLES,
-                'levels' => \App\Support\Scoring::LEVELS,
+                'role_lines' => \App\Models\User::LINES,
+                'levels' => \App\Support\Scoring::levels(),
+                'level_scheme' => \App\Support\Scoring::currentScheme(),
                 'evaluations' => \App\Support\Scoring::EVALUATIONS,
                 'treatments' => config('manrisk.treatments'),
                 'risk_statuses' => config('manrisk.risk_statuses'),

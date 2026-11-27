@@ -186,6 +186,25 @@ class HubIntegrationTest extends TestCase
             ->getJson("/risks/similar?unit_id={$this->unitA->id}&text=" . urlencode('teks yang cukup panjang'))->assertOk()->assertSessionHas('success', 'Risiko tersimpan');
     }
 
+    public function test_super_admin_still_bound_by_status_rules(): void
+    {
+        $active = $this->makeRisk(['status' => 'treating']);
+        $sa = $this->users['super_admin'];
+        $this->assertFalse($sa->can('submit', $active)); // risiko aktif tidak boleh diajukan ulang sebagai risiko baru
+        $this->assertFalse($sa->can('close', $this->makeRisk(['status' => 'closed'])));
+        $this->assertTrue($sa->can('submit', $this->makeRisk(['status' => 'draft'])));
+        $draft = $this->makeRisk(['status' => 'draft', 'residual_l' => 2, 'residual_i' => 2]);
+        $this->actingAs($this->users['risk_officer']);
+        $a = app(ApprovalService::class)->submit($draft, 'new_risk', $this->users['risk_officer']);
+        $this->assertTrue($sa->can('decide', $a->fresh()));
+        app(ApprovalService::class)->decide($a->fresh(), $sa, 'approve');
+        app(ApprovalService::class)->decide($a->fresh(), $sa, 'approve');
+        $this->assertSame('approved', $a->fresh()->status);
+        $this->assertFalse($sa->can('decide', $a->fresh())); // sudah diputus → tombol tidak tampil
+        $own = app(ApprovalService::class)->submit($this->makeRisk(['status' => 'draft']), 'new_risk', $sa);
+        $this->assertFalse($sa->can('decide', $own->fresh())); // pengajuan sendiri
+    }
+
     public function test_numbering_continues_past_999(): void
     {
         $this->actingAs($this->users['risk_manager']);

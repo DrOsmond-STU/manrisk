@@ -34,14 +34,14 @@ class ImprovementController extends Controller
                 $q->where($k, $f[$k]);
             }
         }
-        $items = $q->get()->map(fn ($i) => collect($i->toArray())->except('subject')->all() + ['subject' => $this->subjectInfo($i), 'can_update' => $user->can('update', $i)]);
+        $items = $q->paginate(25)->withQueryString()->through(fn ($i) => collect($i->toArray())->except('subject')->all() + ['subject' => $this->subjectInfo($i), 'can_update' => $user->can('update', $i)]);
         $subject = !empty($f['subject_type']) && !empty($f['subject_id']) ? (Relation::getMorphedModel($f['subject_type']))::find($f['subject_id']) : null;
         return Inertia::render('Improvements/Index', [
             'items' => $items,
             'filters' => $f,
             'filter_labels' => array_filter(['subject' => $subject ? self::SUBJECT_TYPES[$f['subject_type']] . ' ' . ($subject->code ?? "#{$subject->id}") . ' · ' . ($subject->name ?? $subject->title ?? $subject->period ?? '') : null,
                 'risk' => !empty($f['risk_id']) ? \App\Models\Risk::find($f['risk_id'])?->code : null]),
-            'lessons' => \App\Support\UnitScope::morph(Lesson::with(['creator:id,name', 'subject']), $user)->latest()->limit(100)->get()->map(fn ($l) => ['id' => $l->id, 'text' => $l->text, 'created_at' => $l->created_at, 'creator' => $l->creator?->name,
+            'lessons' => \App\Support\UnitScope::morph(Lesson::with(['creator:id,name', 'subject']), $user)->latest()->paginate(10, ['*'], 'lpage')->withQueryString()->through(fn ($l) => ['id' => $l->id, 'text' => $l->text, 'created_at' => $l->created_at, 'creator' => $l->creator?->name,
                 'subject' => $l->subject ? ['type' => $l->subject_type, 'id' => $l->subject_id, 'label' => ['risk' => 'Risiko', 'incident' => 'Insiden'][$l->subject_type] ?? class_basename($l->subject), 'code' => $l->subject->code ?? null, 'name' => $l->subject->name ?? $l->subject->title ?? null] : null]),
             'sources' => self::SOURCES,
             'subject_types' => self::SUBJECT_TYPES,

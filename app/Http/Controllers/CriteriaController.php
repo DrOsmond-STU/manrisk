@@ -20,8 +20,11 @@ class CriteriaController extends Controller
         return Inertia::render('Criteria/Index', [
             'versions' => CriteriaVersion::with('creator:id,name')->orderByDesc('version')->get(),
             // Jumlah risiko mengikuti cakupan unit pengguna agar sama dengan daftar yang dibuka lewat tautannya
-            'categories' => RiskCategory::withCount(['risks' => fn ($q) => $this->scopeUnits($q)->where('status', '!=', 'closed')])->orderBy('sort')->get(),
+            'categories' => $this->categoryTree(),
+            'tiers' => RiskCategory::TIERS,
             'default_matrix' => Scoring::defaultMatrix(),
+            'default_matrices' => collect(Scoring::SCHEMES)->map(fn ($s, $k) => Scoring::defaultMatrix($k)),
+            'schemes' => collect(Scoring::SCHEMES)->map(fn ($s) => ['label' => $s['label'], 'levels' => $s['levels']]),
             'appetite' => collect(auth()->user()->organization?->settings ?? [])->only('appetite_statement', 'appetite_basis', 'appetite_date'),
             'can' => ['write' => auth()->user()->can('create', CriteriaVersion::class), 'delete' => auth()->user()->can('delete', new RiskCategory())],
         ]);
@@ -32,6 +35,7 @@ class CriteriaController extends Controller
         $this->authorize('create', CriteriaVersion::class);
         $data = $request->validate([
             'effective_from' => ['required', 'date'],
+            'scheme' => ['nullable', Rule::in(array_keys(Scoring::SCHEMES))],
             'likelihood' => ['required', 'array', 'size:5'],
             'likelihood.*.v' => ['required', 'integer', 'between:1,5'],
             'likelihood.*.label' => ['required', 'string', 'max:60'],
@@ -45,7 +49,7 @@ class CriteriaController extends Controller
             'dimensions.*.key' => ['required', 'string', 'max:20', 'regex:/^[a-z0-9_]+$/'],
             'dimensions.*.label' => ['required', 'string', 'max:60'],
             'matrix' => ['required', 'array', 'size:25'],
-            'matrix.*' => ['required', Rule::in(array_keys(Scoring::LEVELS))],
+            'matrix.*' => ['required', Rule::in(array_keys(Scoring::SCHEMES[is_string($request->input('scheme')) ? $request->input('scheme') : 'standard']['levels'] ?? Scoring::LEVELS))],
             'thresholds.escalate' => ['required', 'integer', 'between:2,25'],
             'thresholds.critical' => ['required', 'integer', 'between:2,25', 'gte:thresholds.escalate'],
             'activate' => ['nullable', 'boolean'],
@@ -56,7 +60,7 @@ class CriteriaController extends Controller
                 CriteriaVersion::where('active', true)->update(['active' => false]);
             }
             return CriteriaVersion::create([
-                'version' => $next, 'effective_from' => $data['effective_from'], 'likelihood' => $data['likelihood'], 'impact' => $data['impact'],
+                'version' => $next, 'scheme' => $data['scheme'] ?? 'standard', 'effective_from' => $data['effective_from'], 'likelihood' => $data['likelihood'], 'impact' => $data['impact'],
                 'dimensions' => $data['dimensions'], 'matrix' => $data['matrix'], 'thresholds' => $data['thresholds'], 'active' => !empty($data['activate']), 'created_by' => $request->user()->id,
             ]);
         });
@@ -96,6 +100,14 @@ class CriteriaController extends Controller
         });
     }
 
+    /** Taksonomi berurutan pohon + jumlah risiko aktif sendiri dan agregat (beserta turunannya). */
+    private function categoryTree()
+    {
+        $counts = $this->scopeUnits(Risk::query())->where('status', '!=', 'closed')->selectRaw('category_id, count(*) as n')->groupBy('category_id')->pluck('n', 'category_id');
+        return RiskCategory::tree()->map(fn ($c) => $c->only('id', 'parent_id', 'name', 'name_en', 'bumn_code', 'description', 'appetite', 'tolerance', 'risk_limit', 'sort', 'active')
+            + ['depth' => $c->depth, 'path' => $c->path, 'risks_count' => (int) ($counts[$c->id] ?? 0), 'risks_total' => (int) collect($c->descendant_ids)->sum(fn ($id) => $counts[$id] ?? 0)])->values();
+    }
+
     // ---- Kategori ----
     public function storeCategory(Request $request)
     {
@@ -130,11 +142,23 @@ class CriteriaController extends Controller
 
     private function categoryRules(Request $request, ?RiskCategory $c = null): array
     {
+        $tree = RiskCategory::tree();
+        $own = $c ? ($tree->firstWhere('id', $c->id)?->descendant_ids ?? [$c->id]) : [];
+        // kedalaman subpohon kategori ini (1 bila tanpa turunan), agar seluruh pohon tetap ≤ 3 tingkat (T1–T3)
+        $subDepth = $c ? $tree->whereIn('id', $own)->max('depth') - ($tree->firstWhere('id', $c->id)?->depth ?? 1) + 1 : 1;
         return $request->validate([
             'name' => ['required', 'string', 'max:120'],
             'name_en' => ['nullable', 'string', 'max:120'],
+            'bumn_code' => ['nullable', 'string', 'max:40'],
             'description' => ['nullable', 'string', 'max:1000'],
-            'parent_id' => ['nullable', Rule::exists('risk_categories', 'id')->where('organization_id', $request->user()->organization_id), Rule::notIn([$c?->id])],
+            'parent_id' => ['nullable', Rule::exists('risk_categories', 'id')->where('organization_id', $request->user()->organization_id), Rule::notIn($own ?: [$c?->id]),
+                function ($attr, $value, $fail) use ($tree, $subDepth) {
+                    $parentDepth = (int) ($tree->firstWhere('id', (int) $value)?->depth ?? 0);
+                    if ($value && $parentDepth + $subDepth > RiskCategory::MAX_DEPTH) {
+                        $fail('Taksonomi paling banyak 3 tingkat (T1 Tema, T2 Kategori, T3 Kelompok Peristiwa).');
+                    }
+                }],
+            'risk_limit' => ['nullable', 'numeric', 'min:0', 'max:9999999999999999'],
             'appetite' => ['required', 'integer', 'between:1,25'],
             'tolerance' => ['required', 'integer', 'between:1,25', 'gte:appetite'],
             'sort' => ['nullable', 'integer', 'min:0'],

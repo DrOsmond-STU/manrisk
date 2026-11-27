@@ -30,10 +30,10 @@ class ControlController extends Controller
         if (($f['eff'] ?? null) === 'weak') {
             $q->where('active', true)->where(fn ($w) => $w->where('operating_eff', '<=', 2)->orWhere('design_eff', '<=', 2)); // selaras KPI "Lemah" (kontrol aktif)
         }
-        $controls = $q->orderBy('code')->get();
+        $controls = $q->orderBy('code')->paginate(25)->withQueryString();
         $all = $this->scoped()->where('active', true)->get(['id', 'design_eff', 'operating_eff', 'type', 'next_test_at']);
         return Inertia::render('Controls/Index', [
-            'controls' => $controls->map(fn ($c) => $c->toArray() + ['overall' => $c->overallEffectiveness()]),
+            'controls' => $controls->through(fn ($c) => $c->toArray() + ['overall' => $c->overallEffectiveness()]),
             'filters' => $f,
             'filter_risk' => !empty($f['risk_id']) ? \App\Models\Risk::find($f['risk_id'])?->only('id', 'code', 'name') : null,
             'stats' => [
@@ -52,11 +52,12 @@ class ControlController extends Controller
         ]);
     }
 
-    /** Kontrol yang terlihat oleh pengguna bercakupan unit: tanpa unit, unitnya dalam cakupan, atau mengendalikan risiko dalam cakupan. */
+    /** Kontrol yang terlihat oleh pengguna bercakupan unit (sama dengan ControlPolicy::view): unitnya dalam cakupan, mengendalikan risiko dalam cakupan, atau tanpa unit dan tidak terkait risiko di luar cakupan. */
     private function scoped()
     {
         $ids = request()->user()->accessibleUnitIds();
-        return Control::query()->when($ids !== null, fn ($q) => $q->where(fn ($w) => $w->whereNull('unit_id')->orWhereIn('unit_id', $ids)->orWhereHas('risks', fn ($r) => $r->whereIn('unit_id', $ids))));
+        return Control::query()->when($ids !== null, fn ($q) => $q->where(fn ($w) => $w->whereIn('unit_id', $ids)->orWhereHas('risks', fn ($r) => $r->whereIn('unit_id', $ids))
+            ->orWhere(fn ($x) => $x->whereNull('unit_id')->whereDoesntHave('risks', fn ($r) => $r->whereNotIn('unit_id', $ids)))));
     }
 
     public function show(Control $control)

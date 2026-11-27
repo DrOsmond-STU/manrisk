@@ -15,6 +15,6 @@ class AuditLogPolicy extends BasePolicy
 
     public function viewAny(User $user): bool
     {
-        return $user->hasRole('super_admin', 'risk_admin', 'risk_manager', 'auditor');
+        return $user->hasRole('super_admin', 'risk_admin', 'risk_manager', 'board', 'auditor');
     }
 }

@@ -17,6 +17,7 @@ class UserSeeder extends Seeder
         ['Risk Officer', 'officer@manrisk.id', 'risk_officer', 'Risk Officer Direktorat TI'],
         ['Risk Owner', 'owner@manrisk.id', 'risk_owner', 'Direktur Teknologi Informasi'],
         ['Management', 'management@manrisk.id', 'management', 'Kepala Badan'],
+        ['Dewan Komisaris', 'komisaris@manrisk.id', 'board', 'Ketua Komite Pemantau Risiko'],
         ['Auditor', 'auditor@manrisk.id', 'auditor', 'Auditor Internal'],
     ];
 

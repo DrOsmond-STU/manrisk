@@ -11,6 +11,19 @@ abstract class Controller
 {
     use AuthorizesRequests;
 
+    /**
+     * Paginasi server untuk koleksi yang sudah dihitung (mis. status terhitung atau filter cakupan di PHP):
+     * hanya satu halaman yang dikirim ke browser, ringkasan/KPI tetap dihitung dari seluruh koleksi.
+     */
+    protected function paginateCollection(\Illuminate\Support\Collection $items, int $perPage = 25, string $pageName = 'page'): \Illuminate\Pagination\LengthAwarePaginator
+    {
+        $total = $items->count();
+        $last = max(1, (int) ceil($total / $perPage));
+        $page = min(max(1, \Illuminate\Pagination\Paginator::resolveCurrentPage($pageName)), $last);
+        return (new \Illuminate\Pagination\LengthAwarePaginator($items->forPage($page, $perPage)->values(), $total, $perPage, $page, ['path' => request()->url(), 'pageName' => $pageName]))
+            ->withQueryString();
+    }
+
     /** Batasi query ke unit yang boleh diakses pengguna bercakupan unit. */
     protected function scopeUnits(Builder|Relation $query, string $column = 'unit_id', ?Request $request = null): Builder|Relation
     {

@@ -23,6 +23,7 @@ class ActionPlan extends Model
         'pic_id',
         'unit_id',
         'budget',
+        'actual_cost',
         'priority',
         'start_date',
         'due_date',
@@ -39,6 +40,7 @@ class ActionPlan extends Model
 
     protected $casts = [
         'budget' => 'decimal:2',
+        'actual_cost' => 'decimal:2',
         'start_date' => 'date',
         'due_date' => 'date',
         'completed_at' => 'datetime',

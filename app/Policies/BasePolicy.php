@@ -20,9 +20,12 @@ abstract class BasePolicy
     /** Kolom unit pada model untuk pemeriksaan cakupan (null = tidak dibatasi unit). */
     protected ?string $unitColumn = 'unit_id';
 
+    /** Kemampuan yang bergantung pada status objek: Super Admin tetap tunduk pada aturan statusnya. */
+    protected array $stateful = [];
+
     public function before(User $user, string $ability): ?bool
     {
-        if ($user->role === 'super_admin') {
+        if ($user->role === 'super_admin' && !in_array($ability, $this->stateful, true)) {
             return true;
         }
         return null;

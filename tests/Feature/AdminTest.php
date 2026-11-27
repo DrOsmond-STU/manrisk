@@ -64,7 +64,7 @@ class AdminTest extends TestCase
         $risk = \App\Models\Risk::withoutGlobalScopes()->create(['organization_id' => $other->id, 'code' => 'R-1', 'name' => 'Rahasia', 'unit_id' => $unit->id, 'category_id' => $cat->id, 'owner_id' => $owner->id, 'cause' => 'a', 'event' => 'b', 'impact' => 'c']);
         $this->as('super_admin')->get("/risks/{$risk->id}")->assertNotFound();
         $this->as('super_admin')->get('/risks')->assertInertia(fn ($p) => $p->where('risks.total', 0));
-        $this->as('super_admin')->get('/admin/users')->assertInertia(fn ($p) => $p->where('users.total', 7));
+        $this->as('super_admin')->get('/admin/users')->assertInertia(fn ($p) => $p->where('users.total', count(User::ROLES)));
         $this->as('risk_officer')->post('/risks', $this->riskPayload(['category_id' => $cat->id]))->assertSessionHasErrors('category_id');
     }
 }

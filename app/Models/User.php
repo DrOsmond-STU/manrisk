@@ -20,8 +20,25 @@ class User extends Authenticatable
         'risk_manager' => 'Risk Manager',
         'risk_officer' => 'Risk Officer',
         'risk_owner' => 'Risk Owner',
-        'management' => 'Management',
-        'auditor' => 'Auditor',
+        'management' => 'Management (Direksi)',
+        'board' => 'Dewan Komisaris / Komite',
+        'auditor' => 'Auditor (SPI)',
+    ];
+
+    /**
+     * Pembagian peran menurut model tiga lini (PER-2/MBU/03/2023): lini pertama pemilik risiko, lini kedua fungsi
+     * manajemen risiko/kepatuhan, lini ketiga audit internal; ditambah organ Direksi dan Dewan Komisaris/Dewan Pengawas
+     * beserta Komite Audit dan Komite Pemantau Risiko.
+     */
+    public const LINES = [
+        'risk_owner' => 'Lini 1 · Pemilik risiko',
+        'risk_officer' => 'Lini 1 · Pemilik risiko',
+        'risk_manager' => 'Lini 2 · Fungsi manajemen risiko',
+        'risk_admin' => 'Lini 2 · Fungsi manajemen risiko',
+        'auditor' => 'Lini 3 · Audit internal (SPI)',
+        'management' => 'Organ · Direksi',
+        'board' => 'Organ · Dewan Komisaris/Dewan Pengawas & Komite',
+        'super_admin' => 'Administrator sistem',
     ];
 
     /** Peran yang cakupannya dibatasi pada unit kerja sendiri (dan sub-unit). */
@@ -68,7 +85,7 @@ class User extends Authenticatable
 
     public function isReadOnly(): bool
     {
-        return $this->hasRole('management', 'auditor');
+        return $this->hasRole('management', 'auditor', 'board');
     }
 
     public function isUnitScoped(): bool

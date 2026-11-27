@@ -32,6 +32,7 @@ class ReportExport implements FromArray, WithHeadings, ShouldAutoSize, WithStyle
             'controls' => ['Kode', 'Nama', 'Tipe', 'Mode', 'Frekuensi', 'Pemilik', 'Ef. Desain', 'Ef. Operasi', 'Uji Terakhir', 'Uji Berikut', 'Risiko Terkait'],
             'kri' => ['Kode', 'Nama', 'Satuan', 'Risiko', 'Pemilik', 'Arah', 'Ambang Waspada', 'Ambang Kritis', 'Nilai Terakhir', 'Status'],
             'incidents' => ['Kode', 'Tanggal', 'Judul', 'Risiko', 'Unit', 'Status', 'Kerugian (Rp)', 'Penyebab', 'Tindakan Korektif'],
+            'quarterly' => ['Kode', 'Risiko', 'Taksonomi', 'Kode Taksonomi BUMN', 'Unit', 'Pemilik', 'Skor Inheren', 'Eksposur Inheren (Rp)', "Target TW{$this->data['quarter']}", 'Target Eksposur (Rp)', 'Realisasi Skor', 'Realisasi Eksposur (Rp)', 'Level', 'Capaian'],
             default => ['Kode', 'Nama Risiko', 'Unit', 'Kategori', 'Pemilik', 'Penyebab', 'Peristiwa', 'Dampak', 'Sumber', 'Kontrol Ada', 'L Inh', 'I Inh', 'Skor Inh', 'L Res', 'I Res', 'Skor Res', 'Level', 'Evaluasi', 'Skor Target', 'Treatment', 'Status', 'Tren'],
         };
     }
@@ -55,6 +56,7 @@ class ReportExport implements FromArray, WithHeadings, ShouldAutoSize, WithStyle
         $d = $this->data;
         return match ($this->type) {
             'action_plans' => $d['plans']->map(fn ($p) => [$p->code, $p->risk?->code, $p->title, $p->pic?->name, $p->unit?->name, config('manrisk.priorities')[$p->priority] ?? $p->priority, $p->start_date?->format('Y-m-d'), $p->due_date?->format('Y-m-d'), $p->progress, $p->status_label, $p->budget])->all(),
+            'quarterly' => $d['profile']->map(fn ($p) => [$p['code'], $p['name'], $p['taxonomy'], $p['bumn_code'], $p['unit'], $p['owner'], $p['inherent'], $p['inherent_exposure'], $p['target'], $p['target_exposure'], $p['real'], $p['real_exposure'], $d['level_labels'][$p['level']] ?? $p['level'], $p['met'] === null ? 'Target belum ditetapkan' : ($p['met'] ? 'Tercapai' : 'Belum tercapai')])->all(),
             'overdue' => $d['plans']->map(fn ($p) => [$p->code, $p->risk?->code, $p->title, $p->pic?->name, $p->unit?->name, $p->due_date?->format('Y-m-d'), $p->late_days, $p->progress])->all(),
             'top' => $d['risks']->values()->map(fn ($r, $i) => [$i + 1, $r->code, $r->name, $r->unit?->name, $r->category?->name, $r->inherent_score, $r->residual_score, Scoring::levelLabel($r->residual_level), Scoring::EVALUATIONS[$r->evaluation] ?? '', config('manrisk.treatments')[$r->treatment] ?? '', $r->actionPlans->count(), $r->trend])->all(),
             'residual' => $d['risks']->map(fn ($r) => [$r->code, $r->name, $r->unit?->name, "{$r->inherent_l}x{$r->inherent_i}", $r->inherent_score, "{$r->residual_l}x{$r->residual_i}", $r->residual_score, $r->projected['score'], "{$r->target_l}x{$r->target_i}", $r->target_score, Scoring::levelLabel($r->residual_level)])->all(),

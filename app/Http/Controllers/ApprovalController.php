@@ -31,7 +31,7 @@ class ApprovalController extends Controller
             'inbox' => $mine->values()->map($map),
             'requested' => $all->where('requester_id', $user->id)->values()->map($map),
             'history' => $all->whereIn('status', ['approved', 'rejected', 'revision'])->take(100)->values()->map($map),
-            'pending_all' => $user->hasRole('super_admin', 'risk_admin', 'risk_manager', 'management', 'auditor') ? $all->where('status', 'pending')->values()->map($map) : [],
+            'pending_all' => $user->hasRole('super_admin', 'risk_admin', 'risk_manager', 'management', 'board', 'auditor') ? $all->where('status', 'pending')->values()->map($map) : [],
         ]);
     }
 

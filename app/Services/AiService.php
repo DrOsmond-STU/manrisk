@@ -126,11 +126,51 @@ class AiService
         return "Anda adalah asisten manajemen risiko ISO 31000:2018 untuk organisasi di Indonesia. Jawab ringkas, terstruktur, dalam Bahasa Indonesia.\n\nTugas: $task\n\nData:\n$ctx";
     }
 
-    private function callAnthropic(string $prompt): array
+    /**
+     * Pemanggilan umum untuk asisten kontekstual dan AI Analitik: kuota, log, dan fallback
+     * lokal sama dengan run(). $fallback dipanggil bila tidak ada penyedia atau penyedia gagal.
+     *
+     * @param array<int, array{role: string, content: string}> $messages
+     */
+    public function complete(User $user, string $feature, string $system, array $messages, callable $fallback, int $maxTokens = 1500): array
     {
+        if (!$this->available()) {
+            throw ValidationException::withMessages(['ai' => 'Fitur AI dinonaktifkan.']);
+        }
+        if ($this->remaining($user) <= 0) {
+            throw ValidationException::withMessages(['ai' => 'Kuota AI harian Anda habis.']);
+        }
+        $ok = true;
+        $tokens = [0, 0];
+        $local = false;
+        try {
+            if ($this->hasProvider()) {
+                [$text, $tokens, $model] = $this->callAnthropic('', $system, $messages, $maxTokens);
+            } else {
+                $text = $fallback();
+                $model = 'local-heuristic';
+                $local = true;
+            }
+        } catch (\Throwable $e) {
+            $ok = false;
+            report($e);
+            $text = $fallback();
+            $model = 'fallback';
+            $local = true;
+        }
+        AiInteraction::create(['organization_id' => $user->organization_id, 'user_id' => $user->id, 'feature' => mb_substr($feature, 0, 30), 'prompt_hash' => hash('sha256', $system . json_encode($messages)), 'tokens_in' => $tokens[0], 'tokens_out' => $tokens[1], 'model' => $model, 'ok' => $ok, 'created_at' => now()]);
+        return ['text' => $text, 'model' => $model, 'local' => $local, 'ok' => $ok, 'remaining' => $this->remaining($user)];
+    }
+
+    private function callAnthropic(string $prompt, ?string $system = null, ?array $messages = null, int $maxTokens = 1500): array
+    {
+        $body = ['model' => config('manrisk.ai.model'), 'max_tokens' => $maxTokens, 'messages' => $messages ?: [['role' => 'user', 'content' => $prompt]]];
+        if ($system) {
+            $body['system'] = $system;
+        }
         $res = Http::withHeaders(['x-api-key' => config('manrisk.ai.api_key'), 'anthropic-version' => '2023-06-01'])
             ->timeout((int) config('manrisk.ai.timeout'))
-            ->post('https://api.anthropic.com/v1/messages', ['model' => config('manrisk.ai.model'), 'max_tokens' => 1500, 'messages' => [['role' => 'user', 'content' => $prompt]]])
+            ->post('https://api.anthropic.com/v1/messages', $body)
             ->throw()->json();
         $text = collect($res['content'] ?? [])->where('type', 'text')->pluck('text')->implode("\n");
         return [$text, [(int) ($res['usage']['input_tokens'] ?? 0), (int) ($res['usage']['output_tokens'] ?? 0)], $res['model'] ?? config('manrisk.ai.model')];

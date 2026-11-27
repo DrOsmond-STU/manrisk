@@ -16,6 +16,7 @@ class RiskSnapshot extends Model
         'period',
         'inherent_score',
         'residual_score',
+        'residual_exposure',
         'level',
         'status',
         'created_at',

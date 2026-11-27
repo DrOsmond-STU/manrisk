@@ -32,6 +32,10 @@ class AlertController extends Controller
         $this->guard($request, $alert);
         $alert->update(['read_at' => $alert->read_at ?? now()]);
         $link = (string) $alert->link;
+        // Objek sumber peringatan sudah dihapus: kembali ke daftar dengan penjelasan, bukan halaman 404
+        if ($alert->subject_type && $alert->subject_id && ($class = \Illuminate\Database\Eloquent\Relations\Relation::getMorphedModel($alert->subject_type)) && !$class::whereKey($alert->subject_id)->exists()) {
+            return redirect()->route('alerts.index')->with('warning', 'Objek terkait peringatan ini sudah dihapus.');
+        }
         // Hanya tautan internal relatif yang diikuti (cegah open redirect)
         return redirect(str_starts_with($link, '/') && !str_starts_with($link, '//') ? $link : route('alerts.index'));
     }

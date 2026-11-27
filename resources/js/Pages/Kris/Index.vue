@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import PageHead from '../../Components/PageHead.vue';
+import Pagination from '../../Components/Pagination.vue';
 import CrudModal from '../../Components/CrudModal.vue';
 import ConfirmButton from '../../Components/ConfirmButton.vue';
 import Pill from '../../Components/Pill.vue';
@@ -10,7 +11,7 @@ import Modal from '../../Components/Modal.vue';
 import Field from '../../Components/Field.vue';
 import Chart from '../../Components/Chart.vue';
 import { fmt } from '../../lib/format';
-const props = defineProps({ kris: Array, filters: Object, filter_labels: Object, stats: Object, risks: Array, users: Array, can: Object });
+const props = defineProps({ kris: Object, filters: Object, filter_labels: Object, stats: Object, risks: Array, users: Array, can: Object });
 const modal = ref(false); const item = ref(null); const val = ref(null); const detail = ref(null);
 const fields = computed(() => [
   { key: 'name', label: 'Nama indikator', required: true, span: true }, { key: 'unit', label: 'Satuan', placeholder: '%, jam, kejadian' },
@@ -37,7 +38,7 @@ const chart = (k) => ({ xAxis: { type: 'category', data: k.series.map((s) => fmt
   <div class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:12px"><span class="hint">Status:</span><button v-for="(l, s) in statusLabel" :key="s" type="button" class="btn sm" :class="filters.status === s ? 'c-indigo' : 'ghost c-indigo'" @click="setStatus(s)">{{ s === 'breach' ? 'Melewati ambang' : l }}</button>
     <template v-if="filters.risk_id || filters.unit_id || filters.status"><span v-if="filter_labels.risk" class="pill run">Risiko {{ filter_labels.risk.code }} · {{ filter_labels.risk.name }}</span><span v-if="filter_labels.unit" class="pill run">Unit {{ filter_labels.unit }} (termasuk sub-unit)</span><span v-if="filters.status" class="pill run">Status {{ statusLabel[filters.status] }}</span><Link href="/kris" class="btn sm ghost c-indigo">hapus filter</Link></template></div>
   <div class="kri-grid">
-    <div v-for="k in kris" :key="k.id" class="kri" :style="k.status === 'critical' ? 'border-color:var(--lv-vh)' : k.status === 'warning' ? 'border-color:var(--lv-m)' : ''">
+    <div v-for="k in kris.data" :key="k.id" class="kri" :style="k.status === 'critical' ? 'border-color:var(--lv-vh)' : k.status === 'warning' ? 'border-color:var(--lv-m)' : ''">
       <div class="kh"><div><div class="mono muted" style="font-size:11px">{{ k.code }} · <Link v-if="k.risk" :href="`/risks/${k.risk.id}`" class="code-link">{{ k.risk.code }}</Link></div><div class="kn">{{ k.name }}</div><Link v-if="k.risk" :href="`/risks/${k.risk.id}`" class="hint plain">Risiko: {{ k.risk.name }} →</Link></div><Pill :value="k.status" /></div>
       <div class="kval">{{ fmt.num(k.last_value, k.decimals) }} <small>{{ k.unit }}</small></div>
       <div class="th"><span>Waspada {{ k.direction === 'down_bad' ? '<' : '>' }} {{ fmt.num(k.threshold_warn, k.decimals) }}</span><span>Kritis {{ k.direction === 'down_bad' ? '<' : '>' }} {{ fmt.num(k.threshold_crit, k.decimals) }}</span></div>
@@ -46,8 +47,9 @@ const chart = (k) => ({ xAxis: { type: 'category', data: k.series.map((s) => fmt
       <Link v-if="k.improvement" :href="`/improvements?subject_type=kri&subject_id=${k.id}`" class="alert-box warn plain" style="margin-top:4px;font-size:12px"><Icon name="up" /><span>Improvement {{ k.improvement.code }} · {{ k.improvement.title }} <Pill :value="k.improvement.status" /></span></Link>
       <div class="row" style="margin-top:4px"><button v-if="can.write" type="button" class="btn sm c-teal" @click="val = k; vf.value = null">Input nilai</button><button v-if="can.write" type="button" class="btn sm c-blue" @click="item = k; modal = true">Ubah</button><button type="button" class="btn sm ghost c-indigo" @click="detail = k">Riwayat</button><ConfirmButton v-if="can.delete" :href="`/kris/${k.id}`" /></div>
     </div>
-    <div v-if="!kris.length" class="empty" style="grid-column:1/-1">{{ filters.risk_id || filters.unit_id || filters.status ? 'Tidak ada KRI sesuai filter.' : 'Belum ada KRI.' }}</div>
+    <div v-if="!kris.data.length" class="empty" style="grid-column:1/-1">{{ filters.risk_id || filters.unit_id || filters.status ? 'Tidak ada KRI sesuai filter.' : 'Belum ada KRI.' }}</div>
   </div>
+  <div class="card" v-if="kris.last_page > 1"><Pagination :data="kris" /></div>
   <CrudModal :show="modal" :title="item ? 'Ubah KRI' : 'KRI baru'" :fields="fields" :item="item" :url="item ? `/kris/${item.id}` : '/kris'" :method="item ? 'put' : 'post'" wide @close="modal = false" />
   <Modal :show="!!val" :title="`Input nilai · ${val?.name}`" @close="val = null">
     <div class="form-grid"><Field v-model="vf.period" type="month" label="Periode" required :error="vf.errors.period" /><Field v-model="vf.value" type="number" step="any" :label="`Nilai (${val?.unit || ''})`" required :error="vf.errors.value" /><Field v-model="vf.source_ref" label="Referensi sumber" span /></div>
