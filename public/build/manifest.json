@@ -8,8 +8,24 @@
     "src": "resources/css/app.css",
     "isEntry": true
   },
+  "resources/css/soft-ui.css": {
+    "file": "assets/soft-ui-BhiviCaX.css",
+    "name": "soft-ui",
+    "names": [
+      "soft-ui.css"
+    ],
+    "src": "resources/css/soft-ui.css",
+    "isEntry": true,
+    "assets": [
+      "assets/curved6-DOI-bjvK.jpg"
+    ]
+  },
+  "resources/images/soft-ui/curved6.jpg": {
+    "file": "assets/curved6-DOI-bjvK.jpg",
+    "src": "resources/images/soft-ui/curved6.jpg"
+  },
   "resources/js/app.js": {
-    "file": "assets/app-VC2yJq2a.js",
+    "file": "assets/app-BlG5vidn.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true
